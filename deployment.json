@@ -1,0 +1,7 @@
+{
+  "network": "localhost",
+  "deployer": "0x71562b71999873DB5b286dF957af199Ec94617F7",
+  "nodeProfileRegistry": "0xD91Fb8750Ea1decEf4cEE9D8314f4a60DE039457",
+  "modelRegistry": "0x2139B5Baf855EEE55Cdb5F19dF50583585581EaD",
+  "inferenceCoordinator": "0x2F415f51FD16900fc1F92943B1F9A07F1b7EEa14"
+}

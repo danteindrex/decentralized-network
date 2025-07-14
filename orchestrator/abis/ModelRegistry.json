@@ -1,0 +1,16 @@
+[
+  "{\"type\":\"constructor\",\"stateMutability\":\"undefined\",\"payable\":false,\"inputs\":[]}",
+  "{\"type\":\"event\",\"anonymous\":false,\"name\":\"ModelDeactivated\",\"inputs\":[{\"type\":\"string\",\"name\":\"modelId\",\"indexed\":true},{\"type\":\"address\",\"name\":\"owner\",\"indexed\":true}]}",
+  "{\"type\":\"event\",\"anonymous\":false,\"name\":\"ModelRegistered\",\"inputs\":[{\"type\":\"string\",\"name\":\"modelId\",\"indexed\":true},{\"type\":\"string\",\"name\":\"modelCID\",\"indexed\":false},{\"type\":\"string\",\"name\":\"name\",\"indexed\":false},{\"type\":\"address\",\"name\":\"owner\",\"indexed\":true}]}",
+  "{\"type\":\"event\",\"anonymous\":false,\"name\":\"ModelUpdated\",\"inputs\":[{\"type\":\"string\",\"name\":\"modelId\",\"indexed\":true},{\"type\":\"string\",\"name\":\"newModelCID\",\"indexed\":false},{\"type\":\"address\",\"name\":\"owner\",\"indexed\":true}]}",
+  "{\"type\":\"function\",\"name\":\"deactivateModel\",\"constant\":false,\"payable\":false,\"inputs\":[{\"type\":\"string\",\"name\":\"modelId\"}],\"outputs\":[]}",
+  "{\"type\":\"function\",\"name\":\"getActiveModels\",\"constant\":true,\"stateMutability\":\"view\",\"payable\":false,\"inputs\":[],\"outputs\":[{\"type\":\"string[]\",\"name\":\"\"}]}",
+  "{\"type\":\"function\",\"name\":\"getAllModels\",\"constant\":true,\"stateMutability\":\"view\",\"payable\":false,\"inputs\":[],\"outputs\":[{\"type\":\"string[]\",\"name\":\"\"}]}",
+  "{\"type\":\"function\",\"name\":\"getModel\",\"constant\":true,\"stateMutability\":\"view\",\"payable\":false,\"inputs\":[{\"type\":\"string\",\"name\":\"modelId\"}],\"outputs\":[{\"type\":\"tuple\",\"name\":\"\",\"components\":[{\"type\":\"string\",\"name\":\"modelCID\"},{\"type\":\"string\",\"name\":\"name\"},{\"type\":\"string\",\"name\":\"description\"},{\"type\":\"uint256\",\"name\":\"timestamp\"},{\"type\":\"bool\",\"name\":\"isActive\"}]}]}",
+  "{\"type\":\"function\",\"name\":\"modelIds\",\"constant\":true,\"stateMutability\":\"view\",\"payable\":false,\"inputs\":[{\"type\":\"uint256\",\"name\":\"\"}],\"outputs\":[{\"type\":\"string\",\"name\":\"\"}]}",
+  "{\"type\":\"function\",\"name\":\"models\",\"constant\":true,\"stateMutability\":\"view\",\"payable\":false,\"inputs\":[{\"type\":\"string\",\"name\":\"\"}],\"outputs\":[{\"type\":\"string\",\"name\":\"modelCID\"},{\"type\":\"string\",\"name\":\"name\"},{\"type\":\"string\",\"name\":\"description\"},{\"type\":\"uint256\",\"name\":\"timestamp\"},{\"type\":\"bool\",\"name\":\"isActive\"}]}",
+  "{\"type\":\"function\",\"name\":\"owner\",\"constant\":true,\"stateMutability\":\"view\",\"payable\":false,\"inputs\":[],\"outputs\":[{\"type\":\"address\",\"name\":\"\"}]}",
+  "{\"type\":\"function\",\"name\":\"registerModel\",\"constant\":false,\"payable\":false,\"inputs\":[{\"type\":\"string\",\"name\":\"modelId\"},{\"type\":\"string\",\"name\":\"modelCID\"},{\"type\":\"string\",\"name\":\"name\"},{\"type\":\"string\",\"name\":\"description\"}],\"outputs\":[]}",
+  "{\"type\":\"function\",\"name\":\"transferOwnership\",\"constant\":false,\"payable\":false,\"inputs\":[{\"type\":\"address\",\"name\":\"newOwner\"}],\"outputs\":[]}",
+  "{\"type\":\"function\",\"name\":\"updateModel\",\"constant\":false,\"payable\":false,\"inputs\":[{\"type\":\"string\",\"name\":\"modelId\"},{\"type\":\"string\",\"name\":\"newModelCID\"}],\"outputs\":[]}"
+]

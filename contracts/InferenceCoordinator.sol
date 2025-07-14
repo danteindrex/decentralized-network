@@ -2,13 +2,15 @@
 pragma solidity ^0.8.0;
 
 interface IModelRegistry {
-    function getModel(string calldata modelId) external view returns (
-        string memory modelCID,
-        string memory name,
-        string memory description,
-        uint256 timestamp,
-        bool isActive
-    );
+    struct ModelInfo {
+        string modelCID;
+        string name;
+        string description;
+        uint256 timestamp;
+        bool isActive;
+    }
+    
+    function getModel(string calldata modelId) external view returns (ModelInfo memory);
 }
 
 contract InferenceCoordinator {
@@ -41,12 +43,12 @@ contract InferenceCoordinator {
     }
 
     function submitPrompt(string calldata promptCID, string calldata modelId) external payable returns (uint) {
-        // Get model CID from registry
-        (string memory modelCID, , , , bool isActive) = IModelRegistry(modelRegistry).getModel(modelId);
-        require(isActive, "Model is not active");
+        // Get model info from registry
+        IModelRegistry.ModelInfo memory model = IModelRegistry(modelRegistry).getModel(modelId);
+        require(model.isActive, "Model is not active");
         
         uint jobId = nextJobId++;
-        emit InferenceRequested(jobId, msg.sender, promptCID, modelId, modelCID);
+        emit InferenceRequested(jobId, msg.sender, promptCID, modelId, model.modelCID);
         return jobId;
     }
 

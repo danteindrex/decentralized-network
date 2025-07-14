@@ -1,5 +1,5 @@
 [
-  "function deregisterNode()",
-  "function profiles(address) view returns (address,uint256,uint256,uint256,bool)",
-  "function registerNode(uint256,uint256,uint256)"
+  "{\"type\":\"function\",\"name\":\"deregisterNode\",\"constant\":false,\"payable\":false,\"inputs\":[],\"outputs\":[]}",
+  "{\"type\":\"function\",\"name\":\"profiles\",\"constant\":true,\"stateMutability\":\"view\",\"payable\":false,\"inputs\":[{\"type\":\"address\",\"name\":\"\"}],\"outputs\":[{\"type\":\"address\",\"name\":\"nodeAddress\"},{\"type\":\"uint256\",\"name\":\"maxRAM\"},{\"type\":\"uint256\",\"name\":\"maxVRAM\"},{\"type\":\"uint256\",\"name\":\"maxCPUPercent\"},{\"type\":\"bool\",\"name\":\"exists\"}]}",
+  "{\"type\":\"function\",\"name\":\"registerNode\",\"constant\":false,\"payable\":false,\"inputs\":[{\"type\":\"uint256\",\"name\":\"maxRAM\"},{\"type\":\"uint256\",\"name\":\"maxVRAM\"},{\"type\":\"uint256\",\"name\":\"maxCPUPercent\"}],\"outputs\":[]}"
 ]

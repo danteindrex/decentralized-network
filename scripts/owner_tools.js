@@ -190,6 +190,9 @@ if (require.main === module) {
             console.error(error);
             process.exit(1);
         });
+} else {
+    // Export for use as a module
+    module.exports = { OwnerTools };
 }
 
 module.exports = { OwnerTools };

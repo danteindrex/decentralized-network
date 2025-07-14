@@ -1,7 +1,13 @@
 [
-  "event InferenceCompleted(uint256 indexed,address indexed,string)",
-  "event InferenceRequested(uint256 indexed,address indexed,string,string)",
-  "function nextJobId() view returns (uint256)",
-  "function submitPrompt(string,string) payable returns (uint256)",
-  "function submitResponse(uint256,string)"
+  "{\"type\":\"constructor\",\"stateMutability\":\"undefined\",\"payable\":false,\"inputs\":[{\"type\":\"address\",\"name\":\"_modelRegistry\"}]}",
+  "{\"type\":\"event\",\"anonymous\":false,\"name\":\"InferenceCompleted\",\"inputs\":[{\"type\":\"uint256\",\"name\":\"jobId\",\"indexed\":true},{\"type\":\"address\",\"name\":\"worker\",\"indexed\":true},{\"type\":\"string\",\"name\":\"responseCID\",\"indexed\":false}]}",
+  "{\"type\":\"event\",\"anonymous\":false,\"name\":\"InferenceRequested\",\"inputs\":[{\"type\":\"uint256\",\"name\":\"jobId\",\"indexed\":true},{\"type\":\"address\",\"name\":\"controller\",\"indexed\":true},{\"type\":\"string\",\"name\":\"promptCID\",\"indexed\":false},{\"type\":\"string\",\"name\":\"modelId\",\"indexed\":false},{\"type\":\"string\",\"name\":\"modelCID\",\"indexed\":false}]}",
+  "{\"type\":\"function\",\"name\":\"modelRegistry\",\"constant\":true,\"stateMutability\":\"view\",\"payable\":false,\"inputs\":[],\"outputs\":[{\"type\":\"address\",\"name\":\"\"}]}",
+  "{\"type\":\"function\",\"name\":\"nextJobId\",\"constant\":true,\"stateMutability\":\"view\",\"payable\":false,\"inputs\":[],\"outputs\":[{\"type\":\"uint256\",\"name\":\"\"}]}",
+  "{\"type\":\"function\",\"name\":\"owner\",\"constant\":true,\"stateMutability\":\"view\",\"payable\":false,\"inputs\":[],\"outputs\":[{\"type\":\"address\",\"name\":\"\"}]}",
+  "{\"type\":\"function\",\"name\":\"setModelRegistry\",\"constant\":false,\"payable\":false,\"inputs\":[{\"type\":\"address\",\"name\":\"_modelRegistry\"}],\"outputs\":[]}",
+  "{\"type\":\"function\",\"name\":\"submitPrompt\",\"constant\":false,\"stateMutability\":\"payable\",\"payable\":true,\"inputs\":[{\"type\":\"string\",\"name\":\"promptCID\"},{\"type\":\"string\",\"name\":\"modelId\"}],\"outputs\":[{\"type\":\"uint256\",\"name\":\"\"}]}",
+  "{\"type\":\"function\",\"name\":\"submitPromptWithCID\",\"constant\":false,\"stateMutability\":\"payable\",\"payable\":true,\"inputs\":[{\"type\":\"string\",\"name\":\"promptCID\"},{\"type\":\"string\",\"name\":\"modelCID\"}],\"outputs\":[{\"type\":\"uint256\",\"name\":\"\"}]}",
+  "{\"type\":\"function\",\"name\":\"submitResponse\",\"constant\":false,\"payable\":false,\"inputs\":[{\"type\":\"uint256\",\"name\":\"jobId\"},{\"type\":\"string\",\"name\":\"responseCID\"}],\"outputs\":[]}",
+  "{\"type\":\"function\",\"name\":\"transferOwnership\",\"constant\":false,\"payable\":false,\"inputs\":[{\"type\":\"address\",\"name\":\"newOwner\"}],\"outputs\":[]}"
 ]

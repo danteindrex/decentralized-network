@@ -50,17 +50,17 @@ async function main() {
 
   fs.writeFileSync(
     path.join(abiDir, 'NodeProfileRegistry.json'),
-    JSON.stringify(JSON.parse(NodeProfileRegistry.interface.format('json')), null, 2)
+    JSON.stringify(NodeProfileRegistry.interface.fragments.map(f => f.format('json')), null, 2)
   );
 
   fs.writeFileSync(
     path.join(abiDir, 'ModelRegistry.json'),
-    JSON.stringify(JSON.parse(ModelRegistry.interface.format('json')), null, 2)
+    JSON.stringify(ModelRegistry.interface.fragments.map(f => f.format('json')), null, 2)
   );
 
   fs.writeFileSync(
     path.join(abiDir, 'InferenceCoordinator.json'),
-    JSON.stringify(JSON.parse(InferenceCoordinator.interface.format('json')), null, 2)
+    JSON.stringify(InferenceCoordinator.interface.fragments.map(f => f.format('json')), null, 2)
   );
 
   console.log("\nDeployment Summary:");
