@@ -1,0 +1,7 @@
+[
+  "event InferenceCompleted(uint256 indexed,address indexed,string)",
+  "event InferenceRequested(uint256 indexed,address indexed,string,string)",
+  "function nextJobId() view returns (uint256)",
+  "function submitPrompt(string,string) payable returns (uint256)",
+  "function submitResponse(uint256,string)"
+]

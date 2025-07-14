@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  ipfs:
+    image: ipfs/go-ipfs:latest
+    ports:
+      - "4001:4001"
+      - "5001:5001"
+      - "8080:8080"
+
+  geth:
+    image: ethereum/client-go:stable
+    command: ["--dev", "--http", "--http.addr", "0.0.0.0", "--http.api", "eth,net,web3,personal,txpool,miner"]
+    volumes:
+      - ./data/geth:/root/.ethereum
+    ports:
+      - "8545:8545"
+      - "30303:30303"
+
+  node:
+    build: .
+    environment:
+      - ETH_NODE=http://geth:8545
+    depends_on:
+      - ipfs
+      - geth
+    volumes:
+      - ./model_cache:/app/model
+    ports:
+      - "8000:8000"

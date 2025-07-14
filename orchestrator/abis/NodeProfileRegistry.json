@@ -1,0 +1,5 @@
+[
+  "function deregisterNode()",
+  "function profiles(address) view returns (address,uint256,uint256,uint256,bool)",
+  "function registerNode(uint256,uint256,uint256)"
+]

@@ -1,0 +1,38 @@
+# Decentralized vLLM Inference Network Configuration Template
+# Copy this to config.yaml and update with your values
+
+# Blockchain Configuration
+eth_node: "http://localhost:8545"
+contract_address: "REPLACE_WITH_INFERENCE_COORDINATOR_ADDRESS"
+model_registry_address: "REPLACE_WITH_MODEL_REGISTRY_ADDRESS"
+default_account: "REPLACE_WITH_YOUR_ACCOUNT_ADDRESS"
+private_key: "REPLACE_WITH_YOUR_PRIVATE_KEY"
+
+# Resource Limits
+min_free_ram: 2147483648  # 2 GB
+min_free_vram: 4294967296  # 4 GB
+max_cpu: 90
+
+# Network Ports
+ray_port: 6379
+vllm_port: 8000
+
+# Node Requirements
+head_min_ram: 8589934592  # 8 GB for head node
+head_min_vram: 8589934592  # 8 GB VRAM for head node
+
+# vLLM Inference Parameters
+max_tokens: 512
+temperature: 0.7
+top_p: 0.9
+stop_tokens: null
+
+# vLLM Model Configuration
+gpu_memory_utilization: 0.8
+max_model_len: 2048
+enforce_eager: false
+trust_remote_code: true
+
+# IPFS Settings
+ipfs_host: "127.0.0.1"
+ipfs_port: 5001

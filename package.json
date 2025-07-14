@@ -1,0 +1,41 @@
+{
+  "name": "decentralized-vllm-contracts",
+  "version": "1.0.0",
+  "description": "Smart contracts for decentralized vLLM inference network",
+  "scripts": {
+    "test": "hardhat test",
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:mainnet": "hardhat run scripts/deploy.js --network mainnet",
+    "node": "hardhat node",
+    "setup": "./setup.sh",
+    "start": "docker-compose up",
+    "start:dev": "docker-compose up -d ipfs geth",
+    "stop": "docker-compose down",
+    "logs": "docker-compose logs -f",
+    "config": "python scripts/update_config.py",
+    "models:list": "hardhat run scripts/owner_tools.js list",
+    "models:upload": "cd orchestrator && python owner_upload.py",
+    "clean": "hardhat clean && docker-compose down -v"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "hardhat": "^2.19.0"
+  },
+  "keywords": [
+    "blockchain",
+    "ai",
+    "llm",
+    "vllm",
+    "ipfs",
+    "decentralized",
+    "inference",
+    "ethereum"
+  ],
+  "author": "Decentralized vLLM Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/decentralized-vllm-inference"
+  }
+}

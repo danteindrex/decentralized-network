@@ -1,0 +1,9 @@
+web3
+pyyaml
+psutil
+torch
+ray
+vllm
+ipfshttpclient
+transformers
+accelerate

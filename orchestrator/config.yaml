@@ -1,0 +1,30 @@
+eth_node: "http://localhost:8545"
+contract_address: "0xYourInferenceCoordinatorAddress"
+model_registry_address: "0xYourModelRegistryAddress"
+contract_abi: |-
+  [ /* ABI JSON here */ ]
+default_account: "0xYourAccount"
+private_key: "0xYourPrivateKey"
+min_free_ram: 2147483648  # 2 GB
+min_free_vram: 4294967296  # 4 GB
+max_cpu: 90
+ray_port: 6379
+vllm_port: 8000
+head_min_ram: 8589934592  # 8 GB for head
+head_min_vram: 8589934592  # 8 GB VRAM
+
+# vLLM inference parameters
+max_tokens: 512
+temperature: 0.7
+top_p: 0.9
+stop_tokens: null
+
+# vLLM model configuration
+gpu_memory_utilization: 0.8
+max_model_len: 2048
+enforce_eager: false
+trust_remote_code: true
+
+# IPFS settings
+ipfs_host: "127.0.0.1"
+ipfs_port: 5001
