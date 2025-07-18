@@ -46,9 +46,6 @@ decentralized_vllm_project/
 
 ### 1. Clone and Install
 
-```bash
-# Clone the repository
-git clone <repository-url>
 cd decentralized_vllm_project
 
 # Install Node.js dependencies

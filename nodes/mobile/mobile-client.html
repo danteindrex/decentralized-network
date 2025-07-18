@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#2196F3">
+    <title>AI Compute Mobile Node</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        
+        .logo {
+            font-size: 3em;
+            margin-bottom: 20px;
+        }
+        
+        .status {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            backdrop-filter: blur(10px);
+        }
+        
+        .status-indicator {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        
+        .connected { background: #4CAF50; }
+        .connecting { background: #FF9800; animation: pulse 1s infinite; }
+        .disconnected { background: #F44336; }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .stat {
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 15px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 0.8em;
+            opacity: 0.8;
+        }
+        
+        .button {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            border-radius: 25px;
+            padding: 15px 30px;
+            color: white;
+            font-size: 1em;
+            cursor: pointer;
+            margin: 10px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+        
+        .button:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+        
+        .button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .logs {
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: left;
+            font-family: monospace;
+            font-size: 0.8em;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .earnings {
+            background: linear-gradient(45deg, #FFD700, #FFA500);
+            color: #333;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .install-prompt {
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🧠</div>
+        <h1>AI Compute Node</h1>
+        <p>Mobile Light Client</p>
+        
+        <div class="status">
+            <div class="status-indicator" id="statusIndicator"></div>
+            <span id="statusText">Initializing...</span>
+        </div>
+        
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-value" id="tasksCompleted">0</div>
+                <div class="stat-label">Tasks Signed</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="peersConnected">0</div>
+                <div class="stat-label">Peers Connected</div>
+            </div>
+        </div>
+        
+        <div class="earnings">
+            <div class="stat-value" id="tokensEarned">0.00</div>
+            <div class="stat-label">Tokens Earned Today</div>
+        </div>
+        
+        <div class="install-prompt" id="installPrompt" style="display: none;">
+            <p>📱 Add to home screen for the best experience!</p>
+            <button class="button" onclick="showInstallInstructions()">How to Install</button>
+        </div>
+        
+        <div>
+            <button class="button" id="connectBtn" onclick="toggleConnection()">Connect</button>
+            <button class="button" onclick="showLogs()">View Logs</button>
+            <button class="button" onclick="showSettings()">Settings</button>
+        </div>
+        
+        <div class="logs" id="logs" style="display: none;"></div>
+    </div>
+
+    <script>
+        class MobileNode {
+            constructor() {
+                this.isConnected = false;
+                this.peers = [];
+                this.tasksCompleted = 0;
+                this.tokensEarned = 0;
+                this.logs = [];
+                
+                this.init();
+            }
+            
+            async init() {
+                this.log('🚀 Initializing mobile node...');
+                
+                // Check for Web3 support
+                if (typeof window.ethereum !== 'undefined') {
+                    this.log('✅ Web3 detected');
+                } else {
+                    this.log('⚠️ No Web3 detected, using fallback');
+                }
+                
+                // Load saved data
+                this.loadData();
+                
+                // Start connection
+                await this.connect();
+                
+                // Update UI periodically
+                setInterval(() => this.updateUI(), 1000);
+                
+                // Check for install prompt
+                this.checkInstallPrompt();
+            }
+            
+            async connect() {
+                this.updateStatus('connecting', 'Connecting to network...');
+                
+                try {
+                    // Simulate connection to bootstrap nodes
+                    await this.delay(2000);
+                    
+                    // Find nearby peers via WebRTC
+                    await this.findPeers();
+                    
+                    this.isConnected = true;
+                    this.updateStatus('connected', 'Connected to AI network');
+                    this.log('✅ Connected to network');
+                    
+                    // Start listening for tasks
+                    this.startTaskListener();
+                    
+                } catch (error) {
+                    this.updateStatus('disconnected', 'Connection failed');
+                    this.log('❌ Connection failed: ' + error.message);
+                }
+            }
+            
+            async findPeers() {
+                this.log('🔍 Finding nearby peers...');
+                
+                // Simulate peer discovery
+                await this.delay(1000);
+                
+                this.peers = [
+                    { id: 'peer1', type: 'worker', distance: 'nearby' },
+                    { id: 'peer2', type: 'worker', distance: 'nearby' }
+                ];
+                
+                this.log(`✅ Found ${this.peers.length} peers`);
+            }
+            
+            startTaskListener() {
+                this.log('👂 Listening for AI tasks...');
+                
+                // Simulate receiving tasks
+                setInterval(() => {
+                    if (this.isConnected && Math.random() < 0.1) { // 10% chance per second
+                        this.handleTask();
+                    }
+                }, 1000);
+            }
+            
+            async handleTask() {
+                this.log('📝 New AI task received');
+                
+                // Simulate task signing
+                await this.delay(500);
+                
+                this.tasksCompleted++;
+                this.tokensEarned += 0.01 + Math.random() * 0.05; // 0.01-0.06 tokens
+                
+                this.log('✅ Task signed and submitted');
+                this.saveData();
+            }
+            
+            updateStatus(status, text) {
+                const indicator = document.getElementById('statusIndicator');
+                const statusText = document.getElementById('statusText');
+                
+                indicator.className = `status-indicator ${status}`;
+                statusText.textContent = text;
+            }
+            
+            updateUI() {
+                document.getElementById('tasksCompleted').textContent = this.tasksCompleted;
+                document.getElementById('peersConnected').textContent = this.peers.length;
+                document.getElementById('tokensEarned').textContent = this.tokensEarned.toFixed(4);
+            }
+            
+            log(message) {
+                const timestamp = new Date().toLocaleTimeString();
+                this.logs.push(`[${timestamp}] ${message}`);
+                
+                // Keep only last 50 logs
+                if (this.logs.length > 50) {
+                    this.logs = this.logs.slice(-50);
+                }
+                
+                console.log(message);
+            }
+            
+            saveData() {
+                const data = {
+                    tasksCompleted: this.tasksCompleted,
+                    tokensEarned: this.tokensEarned,
+                    logs: this.logs
+                };
+                localStorage.setItem('mobileNodeData', JSON.stringify(data));
+            }
+            
+            loadData() {
+                const data = localStorage.getItem('mobileNodeData');
+                if (data) {
+                    const parsed = JSON.parse(data);
+                    this.tasksCompleted = parsed.tasksCompleted || 0;
+                    this.tokensEarned = parsed.tokensEarned || 0;
+                    this.logs = parsed.logs || [];
+                }
+            }
+            
+            checkInstallPrompt() {
+                // Show install prompt if not installed
+                if (!window.matchMedia('(display-mode: standalone)').matches) {
+                    document.getElementById('installPrompt').style.display = 'block';
+                }
+            }
+            
+            delay(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+        }
+        
+        // Global functions
+        let mobileNode;
+        
+        function toggleConnection() {
+            const btn = document.getElementById('connectBtn');
+            
+            if (mobileNode.isConnected) {
+                mobileNode.isConnected = false;
+                mobileNode.updateStatus('disconnected', 'Disconnected');
+                btn.textContent = 'Connect';
+            } else {
+                mobileNode.connect();
+                btn.textContent = 'Disconnect';
+            }
+        }
+        
+        function showLogs() {
+            const logsDiv = document.getElementById('logs');
+            const isVisible = logsDiv.style.display !== 'none';
+            
+            if (isVisible) {
+                logsDiv.style.display = 'none';
+            } else {
+                logsDiv.innerHTML = mobileNode.logs.join('<br>');
+                logsDiv.style.display = 'block';
+                logsDiv.scrollTop = logsDiv.scrollHeight;
+            }
+        }
+        
+        function showSettings() {
+            alert('Settings panel coming soon!\n\n• Notification preferences\n• Earning goals\n• Power saving mode\n• Backup wallet');
+        }
+        
+        function showInstallInstructions() {
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            const instructions = isIOS 
+                ? "iOS: Tap the Share button (📤) then 'Add to Home Screen'"
+                : "Android: Tap the menu (⋮) then 'Add to Home screen' or 'Install app'";
+            
+            alert(`📱 Install Instructions:\n\n${instructions}\n\nThis will give you:\n• Faster loading\n• Offline access\n• Push notifications\n• Better performance`);
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('load', () => {
+            mobileNode = new MobileNode();
+        });
+        
+        // Service Worker registration
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+    </script>
+</body>
+</html>

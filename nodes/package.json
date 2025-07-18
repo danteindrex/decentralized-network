@@ -1,0 +1,35 @@
+{
+  "name": "ai-compute-nodes",
+  "version": "1.0.0",
+  "description": "Bootstrap and Worker nodes for AI compute private network",
+  "main": "index.js",
+  "scripts": {
+    "bootstrap": "node bootstrap/bootstrap-node.js",
+    "worker": "node worker/worker-node.js",
+    "setup:bootstrap": "./setup-bootstrap.sh",
+    "setup:worker": "./setup-worker.sh",
+    "mobile": "python3 -m http.server 8080 --directory mobile",
+    "configure": "node configure-resources.js",
+    "adjust": "node dynamic-adjuster.js",
+    "web-adjust": "python3 -m http.server 8081 --directory . && echo 'Open http://localhost:8081/web-adjuster.html'",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "blockchain",
+    "ai",
+    "p2p",
+    "ethereum",
+    "compute",
+    "mobile"
+  ],
+  "author": "AI Compute Network",
+  "license": "MIT",
+  "dependencies": {
+    "web3": "^4.0.0",
+    "libp2p": "^0.46.0",
+    "ipfs-http-client": "^60.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

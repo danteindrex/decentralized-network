@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Compute - Resource Adjuster</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            backdrop-filter: blur(10px);
+        }
+        
+        .resource-control {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr auto;
+            gap: 15px;
+            align-items: center;
+            margin: 15px 0;
+            padding: 15px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+        }
+        
+        .resource-label {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        
+        .resource-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #FFD700;
+            text-align: center;
+            min-width: 60px;
+        }
+        
+        .slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 5px;
+            background: rgba(255,255,255,0.2);
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #FFD700;
+            cursor: pointer;
+        }
+        
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #FFD700;
+            cursor: pointer;
+            border: none;
+        }
+        
+        .impact {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+        
+        .button {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            border-radius: 25px;
+            padding: 12px 24px;
+            color: white;
+            font-size: 1em;
+            cursor: pointer;
+            margin: 5px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+        
+        .button:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+        
+        .button.primary {
+            background: linear-gradient(45deg, #FFD700, #FFA500);
+            color: #333;
+            font-weight: bold;
+        }
+        
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4CAF50;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .preset-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin: 20px 0;
+        }
+        
+        .usage-chart {
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .usage-bar {
+            background: rgba(255,255,255,0.1);
+            height: 20px;
+            border-radius: 10px;
+            margin: 8px 0;
+            overflow: hidden;
+        }
+        
+        .usage-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #FFD700, #FF5722);
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+        
+        .logs {
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            padding: 15px;
+            font-family: monospace;
+            font-size: 0.8em;
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎛️ AI Compute Resource Adjuster</h1>
+            <p>Real-time adjustment of compute contribution</p>
+        </div>
+        
+        <div class="card">
+            <div class="status">
+                <div class="status-indicator"></div>
+                <span>Connected to local node</span>
+            </div>
+            
+            <h3>📊 Current Resource Allocation</h3>
+            
+            <div class="resource-control">
+                <div class="resource-label">💾 Storage</div>
+                <div class="resource-value" id="storageValue">5%</div>
+                <input type="range" class="slider" id="storageSlider" min="1" max="50" value="5">
+                <div class="impact" id="storageImpact">2.5GB allocated</div>
+            </div>
+            
+            <div class="resource-control">
+                <div class="resource-label">🖥️ CPU</div>
+                <div class="resource-value" id="cpuValue">10%</div>
+                <input type="range" class="slider" id="cpuSlider" min="5" max="80" value="10">
+                <div class="impact" id="cpuImpact">1 core allocated</div>
+            </div>
+            
+            <div class="resource-control">
+                <div class="resource-label">🧠 RAM</div>
+                <div class="resource-value" id="ramValue">15%</div>
+                <input type="range" class="slider" id="ramSlider" min="5" max="70" value="15">
+                <div class="impact" id="ramImpact">2.4GB allocated</div>
+            </div>
+            
+            <div class="resource-control">
+                <div class="resource-label">🎮 GPU</div>
+                <div class="resource-value" id="gpuValue">10%</div>
+                <input type="range" class="slider" id="gpuSlider" min="0" max="90" value="10">
+                <div class="impact" id="gpuImpact">0.8GB allocated</div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3>🎯 Quick Presets</h3>
+            <div class="preset-buttons">
+                <button class="button" onclick="applyPreset('conservative')">Conservative</button>
+                <button class="button" onclick="applyPreset('balanced')">Balanced</button>
+                <button class="button" onclick="applyPreset('generous')">Generous</button>
+                <button class="button" onclick="applyPreset('mobile')">Mobile</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3>📈 Current Usage</h3>
+            <div class="usage-chart">
+                <div>CPU Usage: <span id="cpuUsage">25%</span></div>
+                <div class="usage-bar">
+                    <div class="usage-fill" id="cpuUsageBar" style="width: 25%"></div>
+                </div>
+                
+                <div>RAM Usage: <span id="ramUsage">1.2GB</span></div>
+                <div class="usage-bar">
+                    <div class="usage-fill" id="ramUsageBar" style="width: 50%"></div>
+                </div>
+                
+                <div>Storage Usage: <span id="storageUsage">0.8GB</span></div>
+                <div class="usage-bar">
+                    <div class="usage-fill" id="storageUsageBar" style="width: 32%"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button class="button primary" onclick="applyChanges()">Apply Changes</button>
+                <button class="button" onclick="resetToDefaults()">Reset to Defaults</button>
+                <button class="button" onclick="toggleAutoApply()">Auto-Apply: OFF</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3>📝 Activity Log</h3>
+            <div class="logs" id="activityLog">
+                [12:34:56] Resource adjuster initialized<br>
+                [12:35:02] Connected to worker node<br>
+                [12:35:05] Current allocation loaded<br>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class ResourceAdjuster {
+            constructor() {
+                this.autoApply = false;
+                this.systemInfo = {
+                    totalStorage: 500, // GB
+                    totalCpu: 8, // cores
+                    totalRam: 16, // GB
+                    totalGpu: 8 // GB
+                };
+                
+                this.init();
+            }
+            
+            init() {
+                this.setupSliders();
+                this.loadCurrentConfig();
+                this.startUsageMonitoring();
+                this.log('Resource adjuster initialized');
+            }
+            
+            setupSliders() {
+                const sliders = ['storage', 'cpu', 'ram', 'gpu'];
+                
+                sliders.forEach(resource => {
+                    const slider = document.getElementById(resource + 'Slider');
+                    const value = document.getElementById(resource + 'Value');
+                    const impact = document.getElementById(resource + 'Impact');
+                    
+                    slider.addEventListener('input', (e) => {
+                        const percentage = e.target.value;
+                        value.textContent = percentage + '%';
+                        this.updateImpact(resource, percentage);
+                        
+                        if (this.autoApply) {
+                            this.applyChanges();
+                        }
+                    });
+                });
+            }
+            
+            updateImpact(resource, percentage) {
+                const impact = document.getElementById(resource + 'Impact');
+                let allocated = 0;
+                let unit = 'GB';
+                
+                switch (resource) {
+                    case 'storage':
+                        allocated = Math.floor(this.systemInfo.totalStorage * percentage / 100);
+                        break;
+                    case 'cpu':
+                        allocated = Math.max(1, Math.floor(this.systemInfo.totalCpu * percentage / 100));
+                        unit = allocated === 1 ? 'core' : 'cores';
+                        break;
+                    case 'ram':
+                        allocated = Math.floor(this.systemInfo.totalRam * percentage / 100);
+                        break;
+                    case 'gpu':
+                        allocated = Math.floor(this.systemInfo.totalGpu * percentage / 100);
+                        break;
+                }
+                
+                impact.textContent = `${allocated} ${unit} allocated`;
+            }
+            
+            loadCurrentConfig() {
+                // Simulate loading current configuration
+                this.log('Current allocation loaded');
+                
+                // Update impact displays
+                ['storage', 'cpu', 'ram', 'gpu'].forEach(resource => {
+                    const slider = document.getElementById(resource + 'Slider');
+                    this.updateImpact(resource, slider.value);
+                });
+            }
+            
+            applyPreset(presetName) {
+                const presets = {
+                    conservative: { storage: 2, cpu: 5, ram: 10, gpu: 5 },
+                    balanced: { storage: 5, cpu: 10, ram: 15, gpu: 10 },
+                    generous: { storage: 10, cpu: 20, ram: 30, gpu: 25 },
+                    mobile: { storage: 1, cpu: 5, ram: 5, gpu: 0 }
+                };
+                
+                const preset = presets[presetName];
+                if (!preset) return;
+                
+                Object.entries(preset).forEach(([resource, value]) => {
+                    const slider = document.getElementById(resource + 'Slider');
+                    const valueDisplay = document.getElementById(resource + 'Value');
+                    
+                    slider.value = value;
+                    valueDisplay.textContent = value + '%';
+                    this.updateImpact(resource, value);
+                });
+                
+                this.log(`Applied ${presetName} preset`);
+                
+                if (this.autoApply) {
+                    this.applyChanges();
+                }
+            }
+            
+            applyChanges() {
+                const config = {
+                    storageContribution: document.getElementById('storageSlider').value,
+                    cpuContribution: document.getElementById('cpuSlider').value,
+                    ramContribution: document.getElementById('ramSlider').value,
+                    gpuContribution: document.getElementById('gpuSlider').value,
+                    timestamp: new Date().toISOString()
+                };
+                
+                // Simulate applying changes
+                this.log(`Applying changes: CPU ${config.cpuContribution}%, RAM ${config.ramContribution}%, Storage ${config.storageContribution}%, GPU ${config.gpuContribution}%`);
+                
+                // In a real implementation, this would send the config to the backend
+                setTimeout(() => {
+                    this.log('✅ Configuration applied successfully');
+                }, 1000);
+            }
+            
+            resetToDefaults() {
+                this.applyPreset('balanced');
+                this.log('Reset to default balanced configuration');
+            }
+            
+            toggleAutoApply() {
+                this.autoApply = !this.autoApply;
+                const button = event.target;
+                button.textContent = `Auto-Apply: ${this.autoApply ? 'ON' : 'OFF'}`;
+                
+                this.log(`Auto-apply ${this.autoApply ? 'enabled' : 'disabled'}`);
+            }
+            
+            startUsageMonitoring() {
+                // Simulate real-time usage monitoring
+                setInterval(() => {
+                    this.updateUsageDisplay();
+                }, 3000);
+            }
+            
+            updateUsageDisplay() {
+                // Simulate fluctuating usage
+                const cpuUsage = Math.floor(Math.random() * 60) + 20; // 20-80%
+                const ramUsage = (Math.random() * 3 + 0.5).toFixed(1); // 0.5-3.5GB
+                const storageUsage = (Math.random() * 2 + 0.2).toFixed(1); // 0.2-2.2GB
+                
+                document.getElementById('cpuUsage').textContent = cpuUsage + '%';
+                document.getElementById('cpuUsageBar').style.width = cpuUsage + '%';
+                
+                document.getElementById('ramUsage').textContent = ramUsage + 'GB';
+                document.getElementById('ramUsageBar').style.width = (ramUsage / 4 * 100) + '%';
+                
+                document.getElementById('storageUsage').textContent = storageUsage + 'GB';
+                document.getElementById('storageUsageBar').style.width = (storageUsage / 3 * 100) + '%';
+            }
+            
+            log(message) {
+                const timestamp = new Date().toLocaleTimeString();
+                const logElement = document.getElementById('activityLog');
+                logElement.innerHTML += `[${timestamp}] ${message}<br>`;
+                logElement.scrollTop = logElement.scrollHeight;
+            }
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('load', () => {
+            new ResourceAdjuster();
+        });
+    </script>
+</body>
+</html>

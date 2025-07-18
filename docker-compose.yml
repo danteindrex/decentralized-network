@@ -10,7 +10,7 @@ services:
 
   geth:
     image: ethereum/client-go:stable
-    command: ["--dev", "--http", "--http.addr", "0.0.0.0", "--http.api", "eth,net,web3,personal,txpool,miner"]
+    command: ["--datadir /root/.ethereum", "--networkid 1337",--http", "--http.addr", "0.0.0.0", "--http.api", "eth,net,web3,personal,txpool,miner"]
     volumes:
       - ./data/geth:/root/.ethereum
     ports:

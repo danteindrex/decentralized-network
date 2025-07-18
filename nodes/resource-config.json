@@ -1,0 +1,78 @@
+{
+  "resourceContribution": {
+    "storage": {
+      "percentage": 5,
+      "description": "Percentage of total storage to contribute to AI network",
+      "minimum": 1,
+      "maximum": 50
+    },
+    "cpu": {
+      "percentage": 10,
+      "description": "Percentage of CPU cores to contribute to AI tasks",
+      "minimum": 5,
+      "maximum": 80
+    },
+    "gpu": {
+      "percentage": 10,
+      "description": "Percentage of GPU memory to contribute to AI tasks",
+      "minimum": 5,
+      "maximum": 90
+    },
+    "ram": {
+      "percentage": 15,
+      "description": "Percentage of RAM to contribute to AI tasks",
+      "minimum": 5,
+      "maximum": 70
+    }
+  },
+  "taskProcessing": {
+    "maxConcurrentTasks": 3,
+    "taskTimeoutMinutes": 30,
+    "resourceThresholdPercent": 80,
+    "description": "AI task processing configuration"
+  },
+  "monitoring": {
+    "intervalSeconds": 30,
+    "maxLogEntries": 100,
+    "alertThresholds": {
+      "cpu": 90,
+      "ram": 85,
+      "storage": 95
+    }
+  },
+  "blockchain": {
+    "recordAllTasks": true,
+    "maxTaskHistory": 1000,
+    "blockConfirmations": 3
+  },
+  "presets": {
+    "conservative": {
+      "storage": 2,
+      "cpu": 5,
+      "gpu": 5,
+      "ram": 10,
+      "description": "Minimal resource contribution for cautious users"
+    },
+    "balanced": {
+      "storage": 5,
+      "cpu": 10,
+      "gpu": 10,
+      "ram": 15,
+      "description": "Default balanced resource contribution"
+    },
+    "generous": {
+      "storage": 10,
+      "cpu": 20,
+      "gpu": 25,
+      "ram": 30,
+      "description": "High resource contribution for dedicated nodes"
+    },
+    "mobile": {
+      "storage": 1,
+      "cpu": 5,
+      "gpu": 0,
+      "ram": 5,
+      "description": "Optimized for mobile devices"
+    }
+  }
+}
