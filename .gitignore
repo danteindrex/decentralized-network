@@ -36,3 +36,30 @@ wheels/
 
 # Model cache
 model_cache/
+
+# Configuration files with sensitive data
+orchestrator/config.yaml
+deployment.json
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

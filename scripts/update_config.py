@@ -1,97 +1,165 @@
 #!/usr/bin/env python3
 """
-Script to automatically update config.yaml with deployed contract addresses
+Script to automatically update orchestrator configuration with deployed contract addresses
 """
 
 import json
+import yaml
 import os
 import sys
-import yaml
+from pathlib import Path
 
 def load_deployment_info():
     """Load deployment information from deployment.json"""
-    deployment_path = os.path.join(os.path.dirname(__file__), '..', 'deployment.json')
+    deployment_path = Path(__file__).parent.parent / "deployment.json"
     
-    if not os.path.exists(deployment_path):
+    if not deployment_path.exists():
         print("❌ deployment.json not found. Please deploy contracts first.")
         return None
     
-    with open(deployment_path, 'r') as f:
-        return json.load(f)
+    try:
+        with open(deployment_path, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"❌ Failed to load deployment.json: {e}")
+        return None
 
-def update_config(deployment_info, account_address=None, private_key=None):
-    """Update config.yaml with deployment information"""
+def update_config_file(deployment_info):
+    """Update orchestrator config.yaml with deployment information"""
+    config_dir = Path(__file__).parent.parent / "orchestrator"
+    config_path = config_dir / "config.yaml"
+    template_path = config_dir / "config.template.yaml"
     
-    config_path = os.path.join(os.path.dirname(__file__), '..', 'orchestrator', 'config.yaml')
-    template_path = os.path.join(os.path.dirname(__file__), '..', 'orchestrator', 'config.template.yaml')
-    
-    # Load template if config doesn't exist
-    if not os.path.exists(config_path):
-        if os.path.exists(template_path):
+    # Create config.yaml from template if it doesn't exist
+    if not config_path.exists():
+        if template_path.exists():
             print("📋 Creating config.yaml from template...")
-            with open(template_path, 'r') as f:
-                config = yaml.safe_load(f)
+            try:
+                with open(template_path, 'r') as f:
+                    config_content = f.read()
+                
+                with open(config_path, 'w') as f:
+                    f.write(config_content)
+                
+                print("✅ Created config.yaml from template")
+            except Exception as e:
+                print(f"❌ Failed to create config.yaml from template: {e}")
+                return False
         else:
             print("❌ Neither config.yaml nor config.template.yaml found")
             return False
-    else:
+    
+    # Load existing config
+    try:
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
+    except Exception as e:
+        print(f"❌ Failed to load config.yaml: {e}")
+        return False
     
     # Update contract addresses
     config['contract_address'] = deployment_info['inferenceCoordinator']
     config['model_registry_address'] = deployment_info['modelRegistry']
+    config['node_profile_registry_address'] = deployment_info['nodeProfileRegistry']
     
-    # Update account info if provided
-    if account_address:
-        config['default_account'] = account_address
-    elif config.get('default_account') == 'REPLACE_WITH_YOUR_ACCOUNT_ADDRESS':
+    # Update deployer address if not set
+    if not config.get('default_account') or config['default_account'] == "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266":
         config['default_account'] = deployment_info['deployer']
-        print(f"🔑 Using deployer address as default account: {deployment_info['deployer']}")
     
-    if private_key:
-        config['private_key'] = private_key
-    elif config.get('private_key') == 'REPLACE_WITH_YOUR_PRIVATE_KEY':
-        print("⚠️  Please set your private key in config.yaml")
+    # Save updated config
+    try:
+        with open(config_path, 'w') as f:
+            yaml.dump(config, f, default_flow_style=False, indent=2)
+        
+        print("✅ Updated config.yaml with contract addresses")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to save config.yaml: {e}")
+        return False
+
+def update_env_file(deployment_info):
+    """Update .env file with contract addresses"""
+    env_path = Path(__file__).parent.parent / ".env"
     
-    # Write updated config
-    with open(config_path, 'w') as f:
-        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+    if not env_path.exists():
+        print("⚠️  .env file not found, skipping env update")
+        return True
     
-    print("✅ config.yaml updated successfully!")
-    print(f"   InferenceCoordinator: {deployment_info['inferenceCoordinator']}")
-    print(f"   ModelRegistry: {deployment_info['modelRegistry']}")
-    print(f"   Default Account: {config['default_account']}")
-    
-    if config.get('private_key') == 'REPLACE_WITH_YOUR_PRIVATE_KEY':
-        print("\n⚠️  Don't forget to set your private key in orchestrator/config.yaml")
-    
-    return True
+    try:
+        # Read existing .env content
+        with open(env_path, 'r') as f:
+            lines = f.readlines()
+        
+        # Update or add contract addresses
+        updated_lines = []
+        found_contract = False
+        found_model_registry = False
+        
+        for line in lines:
+            if line.startswith('CONTRACT_ADDRESS='):
+                updated_lines.append(f'CONTRACT_ADDRESS={deployment_info["inferenceCoordinator"]}\n')
+                found_contract = True
+            elif line.startswith('MODEL_REGISTRY_ADDRESS='):
+                updated_lines.append(f'MODEL_REGISTRY_ADDRESS={deployment_info["modelRegistry"]}\n')
+                found_model_registry = True
+            else:
+                updated_lines.append(line)
+        
+        # Add missing entries
+        if not found_contract:
+            updated_lines.append(f'CONTRACT_ADDRESS={deployment_info["inferenceCoordinator"]}\n')
+        if not found_model_registry:
+            updated_lines.append(f'MODEL_REGISTRY_ADDRESS={deployment_info["modelRegistry"]}\n')
+        
+        # Write back to file
+        with open(env_path, 'w') as f:
+            f.writelines(updated_lines)
+        
+        print("✅ Updated .env file with contract addresses")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to update .env file: {e}")
+        return False
 
 def main():
     """Main function"""
-    import argparse
+    print("🔧 Updating configuration with deployed contract addresses...")
+    print("=" * 60)
     
-    parser = argparse.ArgumentParser(description='Update config.yaml with deployed contract addresses')
-    parser.add_argument('--account', help='Account address to use')
-    parser.add_argument('--private-key', help='Private key to use')
-    
-    args = parser.parse_args()
-    
-    # Load deployment info
+    # Load deployment information
     deployment_info = load_deployment_info()
     if not deployment_info:
         sys.exit(1)
     
-    # Update config
-    success = update_config(deployment_info, args.account, args.private_key)
-    if not success:
-        sys.exit(1)
+    print("📋 Deployment Information:")
+    print(f"   Network: {deployment_info.get('network', 'unknown')}")
+    print(f"   Deployer: {deployment_info.get('deployer', 'unknown')}")
+    print(f"   InferenceCoordinator: {deployment_info.get('inferenceCoordinator', 'unknown')}")
+    print(f"   ModelRegistry: {deployment_info.get('modelRegistry', 'unknown')}")
+    print(f"   NodeProfileRegistry: {deployment_info.get('nodeProfileRegistry', 'unknown')}")
+    print()
     
-    print("\n🎉 Configuration updated! You can now:")
-    print("1. Upload models: cd orchestrator && python owner_upload.py --help")
-    print("2. Start orchestrator: cd orchestrator && python main.py")
-    print("3. Manage models: npx hardhat run scripts/owner_tools.js list")
+    # Update config file
+    success = True
+    if not update_config_file(deployment_info):
+        success = False
+    
+    # Update env file
+    if not update_env_file(deployment_info):
+        success = False
+    
+    if success:
+        print("\n🎉 Configuration update completed successfully!")
+        print("\n📋 Next steps:")
+        print("1. Review orchestrator/config.yaml and update any other settings as needed")
+        print("2. Set your wallet credentials:")
+        print("   export DEFAULT_ACCOUNT=0xYourAddress")
+        print("   export PRIVATE_KEY=0xYourPrivateKey")
+        print("3. Start the orchestrator:")
+        print("   cd orchestrator && python main.py")
+    else:
+        print("\n❌ Configuration update failed. Please check the errors above.")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,239 @@
+# Unified Multi-Stage Dockerfile for Decentralized vLLM Inference Network
+# Build different service types using build args
+
+# =============================================================================
+# Base Stage - Common dependencies
+# =============================================================================
+FROM node:18-slim as base
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-venv \
+    curl \
+    git \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY orchestrator/requirements.txt ./orchestrator/
+COPY streamlit_requirements.txt ./
+
+# Install Node.js dependencies
+RUN npm ci --only=production
+
+# Create Python virtual environment and install dependencies
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+RUN pip install --no-cache-dir -r orchestrator/requirements.txt
+RUN pip install --no-cache-dir -r streamlit_requirements.txt
+
+# =============================================================================
+# Development Stage - For local development
+# =============================================================================
+FROM base as development
+
+# Install development dependencies
+RUN npm ci
+RUN pip install --no-cache-dir pytest black flake8 mypy
+
+# Copy source code
+COPY . .
+
+# Expose common ports
+EXPOSE 8000 8001 8002 8080 8501 8546 30303
+
+# Default command for development
+CMD ["npm", "run", "start:dev"]
+
+# =============================================================================
+# Production Base - Optimized for production
+# =============================================================================
+FROM base as production-base
+
+# Copy only necessary files
+COPY contracts/ ./contracts/
+COPY scripts/ ./scripts/
+COPY orchestrator/ ./orchestrator/
+COPY nodes/ ./nodes/
+COPY hardhat.config.js ./
+COPY .env.example ./
+
+# Create necessary directories
+RUN mkdir -p logs model_cache data
+
+# Set production environment
+ENV NODE_ENV=production
+ENV PYTHONPATH=/app
+
+# =============================================================================
+# Bootstrap Node - Network coordinator
+# =============================================================================
+FROM production-base as bootstrap
+
+# Copy bootstrap-specific files
+COPY nodes/bootstrap/ ./nodes/bootstrap/
+COPY nodes/mobile/ ./nodes/mobile/
+
+# Expose bootstrap ports
+EXPOSE 30303 8080 8545
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Start bootstrap node
+CMD ["node", "nodes/bootstrap/bootstrap-node.js"]
+
+# =============================================================================
+# Worker Node - Compute provider
+# =============================================================================
+FROM production-base as worker
+
+# Install additional dependencies for AI inference
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir vllm ray
+
+# Copy worker-specific files
+COPY nodes/worker/ ./nodes/worker/
+
+# Expose worker ports
+EXPOSE 8000 8001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8001/health || exit 1
+
+# Start worker node
+CMD ["node", "nodes/worker/worker-node.js"]
+
+# =============================================================================
+# Model Owner - AI model manager
+# =============================================================================
+FROM production-base as owner
+
+# Copy owner-specific files
+COPY orchestrator/owner_upload.py ./orchestrator/
+
+# Expose owner API port
+EXPOSE 8002
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8002/health || exit 1
+
+# Start owner service
+CMD ["python", "orchestrator/owner_upload.py", "--server"]
+
+# =============================================================================
+# Orchestrator - Main inference engine
+# =============================================================================
+FROM production-base as orchestrator
+
+# Install AI/ML dependencies
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir vllm ray transformers
+
+# Copy orchestrator files
+COPY orchestrator/ ./orchestrator/
+
+# Expose orchestrator ports
+EXPOSE 8000 8546
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:8000/health')" || exit 1
+
+# Start orchestrator
+CMD ["python", "orchestrator/main.py"]
+
+# =============================================================================
+# Streamlit UI - Web interface
+# =============================================================================
+FROM production-base as streamlit
+
+# Copy Streamlit app
+COPY streamlit_app.py ./
+COPY streamlit_requirements.txt ./
+
+# Expose Streamlit port
+EXPOSE 8501
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8501/_stcore/health || exit 1
+
+# Start Streamlit
+CMD ["streamlit", "run", "streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+
+# =============================================================================
+# Mobile Server - PWA server
+# =============================================================================
+FROM production-base as mobile
+
+# Install nginx for serving static files
+RUN apt-get update && apt-get install -y nginx && rm -rf /var/lib/apt/lists/*
+
+# Copy mobile app files
+COPY nodes/mobile/ ./nodes/mobile/
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Expose mobile server port
+EXPOSE 8081
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8081/health || exit 1
+
+# Start mobile server
+CMD ["nginx", "-g", "daemon off;"]
+
+# =============================================================================
+# Contract Deployer - One-time deployment
+# =============================================================================
+FROM production-base as deployer
+
+# Copy deployment scripts
+COPY scripts/ ./scripts/
+COPY contracts/ ./contracts/
+
+# Install Hardhat globally
+RUN npm install -g hardhat
+
+# Health check (for deployment completion)
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
+    CMD test -f deployment.json || exit 1
+
+# Deploy contracts and exit
+CMD ["npm", "run", "deploy:docker"]
+
+# =============================================================================
+# All-in-One - For single-machine deployment
+# =============================================================================
+FROM production-base as all-in-one
+
+# Install all dependencies
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir vllm ray transformers
+RUN apt-get update && apt-get install -y nginx supervisor && rm -rf /var/lib/apt/lists/*
+
+# Copy all service files
+COPY . .
+
+# Copy supervisor configuration
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Expose all ports
+EXPOSE 8000 8001 8002 8080 8501 8545 8546 30303
+
+# Health check for all services
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD supervisorctl status | grep -q "RUNNING" || exit 1
+
+# Start all services with supervisor
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

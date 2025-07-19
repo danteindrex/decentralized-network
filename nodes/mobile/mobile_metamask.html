@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧠 AI Compute Network - Mobile</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#f6851b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="AI Compute">
+    
+    <!-- PWA Icons -->
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
+    
+    <!-- Web3 Libraries -->
+    <script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .wallet-section {
+            text-align: center;
+        }
+
+        .metamask-button {
+            background: linear-gradient(135deg, #f6851b, #e2761b);
+            color: white;
+            border: none;
+            padding: 16px 24px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin: 16px 0;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+
+        .metamask-button:hover {
+            background: linear-gradient(135deg, #e2761b, #d1661b);
+            transform: translateY(-2px);
+        }
+
+        .metamask-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .wallet-info {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 16px;
+            margin: 16px 0;
+            border-left: 4px solid #f6851b;
+        }
+
+        .wallet-info h3 {
+            color: #f6851b;
+            margin-bottom: 12px;
+            font-size: 1.1rem;
+        }
+
+        .wallet-info p {
+            margin: 8px 0;
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .wallet-info .address {
+            font-family: monospace;
+            background: #e9ecef;
+            padding: 8px;
+            border-radius: 6px;
+            word-break: break-all;
+            font-size: 0.8rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin: 20px 0;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 12px;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #f6851b;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin: 20px 0;
+        }
+
+        .action-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 14px 20px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .action-button:hover {
+            background: #0056b3;
+            transform: translateY(-1px);
+        }
+
+        .action-button.secondary {
+            background: #6c757d;
+        }
+
+        .action-button.secondary:hover {
+            background: #545b62;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-online {
+            background: #28a745;
+            box-shadow: 0 0 8px rgba(40, 167, 69, 0.5);
+        }
+
+        .status-offline {
+            background: #dc3545;
+        }
+
+        .network-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 16px 0;
+            color: #856404;
+            font-size: 0.9rem;
+        }
+
+        .success-message {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 16px 0;
+            color: #155724;
+            font-size: 0.9rem;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #f6851b;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .footer {
+            margin-top: auto;
+            text-align: center;
+            color: white;
+            opacity: 0.8;
+            font-size: 0.8rem;
+            padding: 20px 0;
+        }
+
+        /* Mobile-specific styles */
+        @media (max-width: 480px) {
+            .container {
+                padding: 16px;
+            }
+            
+            .header h1 {
+                font-size: 1.5rem;
+            }
+            
+            .card {
+                padding: 20px;
+            }
+        }
+
+        /* Install prompt styles */
+        .install-prompt {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            z-index: 1000;
+            transform: translateY(100px);
+            transition: transform 0.3s ease;
+        }
+
+        .install-prompt.show {
+            transform: translateY(0);
+        }
+
+        .install-prompt h3 {
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .install-prompt p {
+            margin-bottom: 16px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .install-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        .install-buttons button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .install-yes {
+            background: #f6851b;
+            color: white;
+        }
+
+        .install-no {
+            background: #e9ecef;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🧠 AI Compute</h1>
+            <p>Decentralized AI Network</p>
+        </div>
+
+        <!-- Wallet Connection Card -->
+        <div class="card">
+            <div class="wallet-section">
+                <h2>🦊 Connect Wallet</h2>
+                
+                <!-- MetaMask Not Available -->
+                <div id="metamask-not-available" class="network-warning hidden">
+                    <strong>⚠️ MetaMask Required</strong><br>
+                    Please install MetaMask mobile app or open this page in MetaMask browser.
+                    <div style="margin-top: 12px;">
+                        <a href="https://metamask.io/download/" target="_blank" class="metamask-button" style="display: inline-block; text-decoration: none; font-size: 14px; padding: 10px 16px;">
+                            📱 Download MetaMask
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Connect Button -->
+                <button id="connect-wallet-btn" class="metamask-button" onclick="connectWallet()">
+                    <span class="loading hidden" id="connect-loading"></span>
+                    🦊 Connect MetaMask
+                </button>
+
+                <!-- Wallet Info (Hidden by default) -->
+                <div id="wallet-info" class="wallet-info hidden">
+                    <h3>✅ Wallet Connected</h3>
+                    <p><strong>Account:</strong></p>
+                    <div class="address" id="wallet-address">Loading...</div>
+                    <p><strong>Balance:</strong> <span id="wallet-balance">Loading...</span> ETH</p>
+                    <p><strong>Network:</strong> <span class="status-indicator status-online"></span>Decentralized vLLM Network</p>
+                    
+                    <button class="action-button secondary" onclick="disconnectWallet()" style="margin-top: 12px;">
+                        🔌 Disconnect
+                    </button>
+                </div>
+
+                <!-- Wrong Network Warning -->
+                <div id="wrong-network" class="network-warning hidden">
+                    <strong>⚠️ Wrong Network</strong><br>
+                    Please switch to the Decentralized vLLM Network (Chain ID: 1337)
+                    <button class="action-button" onclick="switchNetwork()" style="margin-top: 8px; width: 100%;">
+                        🔄 Switch Network
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Card (Hidden until connected) -->
+        <div id="stats-card" class="card hidden">
+            <h3>📊 Your Stats</h3>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-value" id="tasks-completed">0</div>
+                    <div class="stat-label">Tasks Completed</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="tokens-earned">0.00</div>
+                    <div class="stat-label">Tokens Earned</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="network-peers">0</div>
+                    <div class="stat-label">Network Peers</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="uptime">0h</div>
+                    <div class="stat-label">Uptime</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions Card (Hidden until connected) -->
+        <div id="actions-card" class="card hidden">
+            <h3>🚀 Quick Actions</h3>
+            <div class="action-buttons">
+                <button class="action-button" onclick="submitTestTask()">
+                    🧠 Submit Test AI Task
+                </button>
+                <button class="action-button" onclick="viewHistory()">
+                    📊 View Task History
+                </button>
+                <button class="action-button secondary" onclick="shareReferral()">
+                    👥 Share Referral Link
+                </button>
+                <button class="action-button secondary" onclick="openSettings()">
+                    ⚙️ Settings
+                </button>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>Powered by MetaMask & IPFS</p>
+            <p>Chain ID: 1337 | Version 1.0.0</p>
+        </div>
+    </div>
+
+    <!-- Install Prompt -->
+    <div id="install-prompt" class="install-prompt">
+        <h3>📱 Install App</h3>
+        <p>Add this app to your home screen for a better experience!</p>
+        <div class="install-buttons">
+            <button class="install-yes" onclick="installApp()">Install</button>
+            <button class="install-no" onclick="dismissInstall()">Not Now</button>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let walletManager = null;
+        let userAccount = null;
+        let userSigner = null;
+        let deferredPrompt = null;
+
+        // Network configuration
+        const NETWORK_CONFIG = {
+            chainId: '0x539', // 1337 in hex
+            chainName: 'Decentralized vLLM Network',
+            rpcUrl: 'http://localhost:8545',
+            nativeCurrency: {
+                name: 'ETH',
+                symbol: 'ETH',
+                decimals: 18
+            }
+        };
+
+        // Mobile Wallet Manager
+        class MobileWalletManager {
+            constructor() {
+                this.provider = null;
+                this.signer = null;
+                this.account = null;
+                this.isConnected = false;
+            }
+
+            async init() {
+                // Check if MetaMask is available
+                if (typeof window.ethereum !== 'undefined') {
+                    this.provider = window.ethereum;
+                    await this.setupEventListeners();
+                    
+                    // Check if already connected
+                    const accounts = await this.provider.request({ method: 'eth_accounts' });
+                    if (accounts.length > 0) {
+                        await this.handleAccountsChanged(accounts);
+                    }
+                    
+                    return true;
+                } else {
+                    this.showMetaMaskNotAvailable();
+                    return false;
+                }
+            }
+
+            async connect() {
+                try {
+                    this.showLoading(true);
+                    
+                    // Request account access
+                    const accounts = await this.provider.request({
+                        method: 'eth_requestAccounts'
+                    });
+
+                    if (accounts.length === 0) {
+                        throw new Error('No accounts found');
+                    }
+
+                    // Switch to correct network
+                    await this.switchToPrivateNetwork();
+
+                    // Set up Web3 provider
+                    const web3Provider = new ethers.providers.Web3Provider(this.provider);
+                    this.signer = web3Provider.getSigner();
+                    this.account = accounts[0];
+                    this.isConnected = true;
+
+                    await this.updateUI();
+                    this.showLoading(false);
+
+                    console.log('✅ Wallet connected:', this.account);
+                    return true;
+
+                } catch (error) {
+                    this.showLoading(false);
+                    console.error('Failed to connect wallet:', error);
+                    this.showError(error.message);
+                    return false;
+                }
+            }
+
+            async switchToPrivateNetwork() {
+                try {
+                    await this.provider.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: NETWORK_CONFIG.chainId }],
+                    });
+                } catch (switchError) {
+                    if (switchError.code === 4902) {
+                        try {
+                            await this.provider.request({
+                                method: 'wallet_addEthereumChain',
+                                params: [NETWORK_CONFIG]
+                            });
+                        } catch (addError) {
+                            throw addError;
+                        }
+                    } else {
+                        throw switchError;
+                    }
+                }
+            }
+
+            async setupEventListeners() {
+                if (!this.provider) return;
+
+                this.provider.on('accountsChanged', (accounts) => {
+                    this.handleAccountsChanged(accounts);
+                });
+
+                this.provider.on('chainChanged', (chainId) => {
+                    this.handleChainChanged(chainId);
+                });
+
+                this.provider.on('disconnect', (error) => {
+                    this.handleDisconnect();
+                });
+            }
+
+            async handleAccountsChanged(accounts) {
+                if (accounts.length === 0) {
+                    this.handleDisconnect();
+                } else {
+                    this.account = accounts[0];
+                    this.isConnected = true;
+                    await this.updateUI();
+                }
+            }
+
+            handleChainChanged(chainId) {
+                console.log('Chain changed to:', chainId);
+                
+                if (chainId !== NETWORK_CONFIG.chainId) {
+                    this.showWrongNetwork();
+                } else {
+                    this.hideWrongNetwork();
+                }
+            }
+
+            handleDisconnect() {
+                this.account = null;
+                this.isConnected = false;
+                this.signer = null;
+                this.updateUI();
+            }
+
+            async updateUI() {
+                const connectBtn = document.getElementById('connect-wallet-btn');
+                const walletInfo = document.getElementById('wallet-info');
+                const statsCard = document.getElementById('stats-card');
+                const actionsCard = document.getElementById('actions-card');
+
+                if (this.isConnected && this.account) {
+                    // Hide connect button, show wallet info
+                    connectBtn.classList.add('hidden');
+                    walletInfo.classList.remove('hidden');
+                    statsCard.classList.remove('hidden');
+                    actionsCard.classList.remove('hidden');
+
+                    // Update wallet info
+                    document.getElementById('wallet-address').textContent = this.formatAddress(this.account);
+                    
+                    // Get and display balance
+                    const balance = await this.getBalance();
+                    document.getElementById('wallet-balance').textContent = balance;
+
+                    // Update stats (mock data for demo)
+                    this.updateStats();
+
+                } else {
+                    // Show connect button, hide wallet info
+                    connectBtn.classList.remove('hidden');
+                    walletInfo.classList.add('hidden');
+                    statsCard.classList.add('hidden');
+                    actionsCard.classList.add('hidden');
+                }
+            }
+
+            async getBalance() {
+                if (!this.account || !this.provider) return '0.0000';
+                
+                try {
+                    const balance = await this.provider.request({
+                        method: 'eth_getBalance',
+                        params: [this.account, 'latest']
+                    });
+                    return (parseInt(balance, 16) / Math.pow(10, 18)).toFixed(4);
+                } catch (error) {
+                    console.error('Failed to get balance:', error);
+                    return '0.0000';
+                }
+            }
+
+            formatAddress(address) {
+                return `${address.slice(0, 6)}...${address.slice(-4)}`;
+            }
+
+            updateStats() {
+                // Mock data - in real app, fetch from blockchain/API
+                document.getElementById('tasks-completed').textContent = Math.floor(Math.random() * 50);
+                document.getElementById('tokens-earned').textContent = (Math.random() * 10).toFixed(2);
+                document.getElementById('network-peers').textContent = Math.floor(Math.random() * 20) + 5;
+                document.getElementById('uptime').textContent = Math.floor(Math.random() * 24) + 'h';
+            }
+
+            showLoading(show) {
+                const loading = document.getElementById('connect-loading');
+                const btnText = document.querySelector('#connect-wallet-btn');
+                
+                if (show) {
+                    loading.classList.remove('hidden');
+                    btnText.innerHTML = '<span class="loading"></span> Connecting...';
+                } else {
+                    loading.classList.add('hidden');
+                    btnText.innerHTML = '🦊 Connect MetaMask';
+                }
+            }
+
+            showMetaMaskNotAvailable() {
+                document.getElementById('metamask-not-available').classList.remove('hidden');
+                document.getElementById('connect-wallet-btn').classList.add('hidden');
+            }
+
+            showWrongNetwork() {
+                document.getElementById('wrong-network').classList.remove('hidden');
+            }
+
+            hideWrongNetwork() {
+                document.getElementById('wrong-network').classList.add('hidden');
+            }
+
+            showError(message) {
+                // Simple alert for now - could be improved with better UI
+                alert(`Error: ${message}`);
+            }
+
+            disconnect() {
+                this.handleDisconnect();
+            }
+        }
+
+        // Initialize wallet manager
+        async function initWallet() {
+            walletManager = new MobileWalletManager();
+            await walletManager.init();
+        }
+
+        // Connect wallet function
+        async function connectWallet() {
+            if (walletManager) {
+                const success = await walletManager.connect();
+                if (success) {
+                    userAccount = walletManager.account;
+                    userSigner = walletManager.signer;
+                }
+            }
+        }
+
+        // Disconnect wallet
+        function disconnectWallet() {
+            if (walletManager) {
+                walletManager.disconnect();
+                userAccount = null;
+                userSigner = null;
+            }
+        }
+
+        // Switch network
+        async function switchNetwork() {
+            if (walletManager) {
+                try {
+                    await walletManager.switchToPrivateNetwork();
+                    walletManager.hideWrongNetwork();
+                } catch (error) {
+                    console.error('Failed to switch network:', error);
+                }
+            }
+        }
+
+        // Action functions
+        function submitTestTask() {
+            alert('🧠 Test AI task submitted! (Demo)');
+        }
+
+        function viewHistory() {
+            alert('📊 Task history would open here (Demo)');
+        }
+
+        function shareReferral() {
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Join AI Compute Network',
+                    text: 'Earn tokens by contributing to decentralized AI!',
+                    url: window.location.href
+                });
+            } else {
+                // Fallback for browsers without Web Share API
+                const url = window.location.href;
+                navigator.clipboard.writeText(url).then(() => {
+                    alert('📋 Referral link copied to clipboard!');
+                });
+            }
+        }
+
+        function openSettings() {
+            alert('⚙️ Settings panel would open here (Demo)');
+        }
+
+        // PWA Installation
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Show install prompt after a delay
+            setTimeout(() => {
+                document.getElementById('install-prompt').classList.add('show');
+            }, 3000);
+        });
+
+        function installApp() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('User accepted the install prompt');
+                    }
+                    deferredPrompt = null;
+                });
+            }
+            dismissInstall();
+        }
+
+        function dismissInstall() {
+            document.getElementById('install-prompt').classList.remove('show');
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            initWallet();
+            
+            // Hide install prompt initially
+            document.getElementById('install-prompt').classList.remove('show');
+        });
+
+        // Service Worker registration for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((registration) => {
+                        console.log('SW registered: ', registration);
+                    })
+                    .catch((registrationError) => {
+                        console.log('SW registration failed: ', registrationError);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>

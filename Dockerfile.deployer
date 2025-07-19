@@ -1,0 +1,20 @@
+# Dockerfile for contract deployment
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Copy contract files
+COPY contracts/ ./contracts/
+COPY scripts/ ./scripts/
+COPY hardhat.config.js ./
+COPY .env* ./
+
+# Create directories for output
+RUN mkdir -p orchestrator/abis
+
+# Wait for blockchain and deploy contracts
+CMD ["sh", "-c", "sleep 30 && npm run compile && npm run deploy:docker"]

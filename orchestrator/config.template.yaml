@@ -1,38 +1,188 @@
-# Decentralized vLLM Inference Network Configuration Template
-# Copy this to config.yaml and update with your values
+# Decentralized vLLM Inference Network - Orchestrator Configuration Template
+# Copy this file to config.yaml and update with your actual values
 
-# Blockchain Configuration
+# =============================================================================
+# BLOCKCHAIN CONFIGURATION
+# =============================================================================
+
+# Ethereum node endpoint
 eth_node: "http://localhost:8545"
-contract_address: "REPLACE_WITH_INFERENCE_COORDINATOR_ADDRESS"
-model_registry_address: "REPLACE_WITH_MODEL_REGISTRY_ADDRESS"
-default_account: "REPLACE_WITH_YOUR_ACCOUNT_ADDRESS"
-private_key: "REPLACE_WITH_YOUR_PRIVATE_KEY"
 
-# Resource Limits
-min_free_ram: 2147483648  # 2 GB
-min_free_vram: 4294967296  # 4 GB
-max_cpu: 90
+# Smart contract addresses (will be auto-populated after deployment)
+contract_address: "0x5FbDB2315678afecb367f032d93F642f64180aa3"  # InferenceCoordinator
+model_registry_address: "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"  # ModelRegistry
+node_profile_registry_address: "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"  # NodeProfileRegistry
 
-# Network Ports
-ray_port: 6379
-vllm_port: 8000
+# Wallet configuration
+default_account: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+private_key: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
-# Node Requirements
-head_min_ram: 8589934592  # 8 GB for head node
-head_min_vram: 8589934592  # 8 GB VRAM for head node
+# =============================================================================
+# IPFS CONFIGURATION
+# =============================================================================
 
-# vLLM Inference Parameters
-max_tokens: 512
-temperature: 0.7
-top_p: 0.9
-stop_tokens: null
-
-# vLLM Model Configuration
-gpu_memory_utilization: 0.8
-max_model_len: 2048
-enforce_eager: false
-trust_remote_code: true
-
-# IPFS Settings
+# IPFS API endpoint
 ipfs_host: "127.0.0.1"
 ipfs_port: 5001
+ipfs_protocol: "http"
+
+# IPFS Gateway for file access
+ipfs_gateway: "http://127.0.0.1:8080"
+
+# =============================================================================
+# AI INFERENCE CONFIGURATION
+# =============================================================================
+
+# vLLM server configuration
+vllm:
+  host: "127.0.0.1"
+  port: 8000
+  gpu_memory_utilization: 0.8
+  max_model_len: 2048
+  temperature: 0.7
+  max_tokens: 512
+  trust_remote_code: true
+
+# Ray cluster configuration (for distributed inference)
+ray:
+  host: "127.0.0.1"
+  port: 6379
+  num_cpus: null  # Auto-detect
+  num_gpus: null  # Auto-detect
+
+# =============================================================================
+# RESOURCE MANAGEMENT
+# =============================================================================
+
+# Resource limits and allocation
+resources:
+  # Minimum free resources to maintain
+  min_free_ram: 2147483648      # 2 GB
+  min_free_vram: 4294967296     # 4 GB
+  min_free_storage: 10737418240 # 10 GB
+  
+  # Maximum resource usage percentages
+  max_cpu: 90
+  max_ram: 80
+  max_vram: 90
+  max_storage: 70
+  
+  # Resource contribution settings
+  cpu_contribution: 10    # Percentage of CPU cores
+  ram_contribution: 15    # Percentage of RAM
+  gpu_contribution: 10    # Percentage of GPU memory
+  storage_contribution: 5 # Percentage of storage
+
+# Model cache configuration
+model_cache:
+  directory: "./model_cache"
+  max_size: 53687091200  # 50 GB
+  cleanup_threshold: 0.9 # Clean when 90% full
+  retention_days: 30     # Keep models for 30 days
+
+# =============================================================================
+# NETWORK CONFIGURATION
+# =============================================================================
+
+# P2P network settings
+network:
+  # Bootstrap nodes for peer discovery
+  bootstrap_nodes:
+    - "localhost:30303"
+  
+  # Local node configuration
+  listen_port: 30303
+  max_peers: 50
+  
+  # Network timeouts
+  connection_timeout: 30
+  request_timeout: 60
+  
+# =============================================================================
+# API CONFIGURATION
+# =============================================================================
+
+# REST API server settings
+api:
+  host: "0.0.0.0"
+  port: 8001
+  cors_enabled: true
+  rate_limit: 100  # requests per minute
+  
+# WebSocket settings
+websocket:
+  port: 8546
+  max_connections: 100
+
+# =============================================================================
+# LOGGING CONFIGURATION
+# =============================================================================
+
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  # Log files
+  files:
+    main: "logs/orchestrator.log"
+    error: "logs/error.log"
+    performance: "logs/performance.log"
+  
+  # Log rotation
+  rotation:
+    max_size: "10MB"
+    backup_count: 5
+
+# =============================================================================
+# MONITORING CONFIGURATION
+# =============================================================================
+
+monitoring:
+  # Performance metrics collection
+  metrics_enabled: true
+  metrics_interval: 60  # seconds
+  
+  # Health check settings
+  health_check_interval: 30  # seconds
+  
+  # Alerting thresholds
+  alerts:
+    cpu_threshold: 90
+    memory_threshold: 90
+    disk_threshold: 95
+    error_rate_threshold: 0.1
+
+# =============================================================================
+# SECURITY CONFIGURATION
+# =============================================================================
+
+security:
+  # API authentication
+  api_key_required: false
+  api_key: null
+  
+  # Rate limiting
+  rate_limiting_enabled: true
+  
+  # CORS settings
+  cors_origins:
+    - "http://localhost:3000"
+    - "http://localhost:8501"
+    - "http://localhost:8080"
+
+# =============================================================================
+# DEVELOPMENT SETTINGS
+# =============================================================================
+
+development:
+  # Enable debug mode
+  debug: true
+  
+  # Auto-reload on code changes
+  auto_reload: true
+  
+  # Mock external services for testing
+  mock_services: false
+  
+  # Test mode settings
+  test_mode: false

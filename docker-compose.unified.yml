@@ -1,0 +1,388 @@
+version: '3.8'
+
+# Unified Docker Compose using multi-stage Dockerfile with MetaMask Integration
+# Usage: docker-compose -f docker-compose.unified.yml up
+
+services:
+  # =============================================================================
+  # Infrastructure Services
+  # =============================================================================
+  
+  # IPFS for decentralized storage
+  ipfs:
+    image: ipfs/go-ipfs:latest
+    ports:
+      - "4001:4001"   # P2P port
+      - "5001:5001"   # API port
+      - "8080:8080"   # Gateway port
+    volumes:
+      - ipfs_data:/data/ipfs
+    environment:
+      - IPFS_PROFILE=server
+    healthcheck:
+      test: ["CMD", "ipfs", "id"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Ethereum blockchain node
+  geth:
+    image: ethereum/client-go:stable
+    command: [
+      "--datadir", "/root/.ethereum",
+      "--networkid", "1337",
+      "--http", "--http.addr", "0.0.0.0", "--http.port", "8545",
+      "--http.api", "eth,net,web3,personal,txpool,miner",
+      "--http.corsdomain", "*",
+      "--ws", "--ws.addr", "0.0.0.0", "--ws.port", "8546",
+      "--ws.api", "eth,net,web3,personal,txpool,miner",
+      "--ws.origins", "*",
+      "--allow-insecure-unlock",
+      "--mine", "--miner.threads", "1",
+      "--miner.etherbase", "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+    ]
+    volumes:
+      - geth_data:/root/.ethereum
+    ports:
+      - "8545:8545"   # HTTP RPC
+      - "8546:8546"   # WebSocket RPC
+      - "30303:30303" # P2P port
+    healthcheck:
+      test: ["CMD-SHELL", "geth attach --exec 'eth.blockNumber' http://localhost:8545 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # =============================================================================
+  # Application Services (using unified Dockerfile with MetaMask)
+  # =============================================================================
+
+  # Contract deployment (runs once)
+  deployer:
+    build:
+      context: .
+      dockerfile: Dockerfile.unified
+      target: deployer
+    depends_on:
+      geth:
+        condition: service_healthy
+    environment:
+      - ETH_NODE_URL=http://geth:8545
+      - CHAIN_ID=1337
+      - CHAIN_NAME=Decentralized vLLM Network
+      - USE_METAMASK=${USE_METAMASK:-true}
+      - PRIVATE_KEY=${OWNER_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
+      - DEFAULT_ACCOUNT=${OWNER_ACCOUNT:-0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266}
+    volumes:
+      - ./deployment.json:/app/deployment.json
+      - ./orchestrator/abis:/app/orchestrator/abis
+      - ./web3-wallet-integration.js:/app/web3-wallet-integration.js:ro
+    restart: "no"
+
+  # Bootstrap Node with MetaMask support
+  bootstrap-node:
+    build:
+      context: .
+      dockerfile: Dockerfile.unified
+      target: bootstrap
+    depends_on:
+      ipfs:
+        condition: service_healthy
+      geth:
+        condition: service_healthy
+      deployer:
+        condition: service_completed_successfully
+    environment:
+      - NODE_TYPE=bootstrap
+      - ETH_NODE_URL=http://geth:8545
+      - IPFS_HOST=ipfs
+      - IPFS_PORT=5001
+      - CHAIN_ID=1337
+      - CHAIN_NAME=Decentralized vLLM Network
+      # MetaMask Integration
+      - BOOTSTRAP_USE_METAMASK=${BOOTSTRAP_USE_METAMASK:-true}
+      - BOOTSTRAP_FALLBACK_PRIVATE_KEY=${BOOTSTRAP_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
+      - BOOTSTRAP_FALLBACK_ACCOUNT=${BOOTSTRAP_ACCOUNT:-0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266}
+      - STATIC_IP=${STATIC_IP:-localhost}
+    volumes:
+      - ./deployment.json:/app/deployment.json:ro
+      - bootstrap_data:/app/data
+      - ./web3-wallet-integration.js:/app/web3-wallet-integration.js:ro
+      - ./nodes/bootstrap/metamask-integration.js:/app/nodes/bootstrap/metamask-integration.js:ro
+      - ./nodes/mobile/mobile_metamask.html:/app/nodes/mobile/mobile_metamask.html:ro
+      - ./nodes/mobile/sw.js:/app/nodes/mobile/sw.js:ro
+    ports:
+      - "30303:30303"  # P2P bootstrap port
+      - "8080:8080"    # Mobile PWA server
+    restart: unless-stopped
+    profiles: ["bootstrap", "full", "metamask"]
+
+  # Worker Node with MetaMask support
+  worker-node:
+    build:
+      context: .
+      dockerfile: Dockerfile.unified
+      target: worker
+    depends_on:
+      ipfs:
+        condition: service_healthy
+      geth:
+        condition: service_healthy
+      deployer:
+        condition: service_completed_successfully
+    environment:
+      - NODE_TYPE=worker
+      - ETH_NODE_URL=http://geth:8545
+      - IPFS_HOST=ipfs
+      - IPFS_PORT=5001
+      - CHAIN_ID=1337
+      - CHAIN_NAME=Decentralized vLLM Network
+      # MetaMask Integration
+      - WORKER_USE_METAMASK=${WORKER_USE_METAMASK:-true}
+      - WORKER_FALLBACK_PRIVATE_KEY=${WORKER_PRIVATE_KEY:-0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d}
+      - WORKER_FALLBACK_ACCOUNT=${WORKER_ACCOUNT:-0x70997970C51812dc3A010C7d01b50e0d17dc79C8}
+      - BOOTSTRAP_NODE=${BOOTSTRAP_NODE:-bootstrap-node:30303}
+      # Resource allocation
+      - CPU_CONTRIBUTION=${CPU_CONTRIBUTION:-10}
+      - RAM_CONTRIBUTION=${RAM_CONTRIBUTION:-15}
+      - GPU_CONTRIBUTION=${GPU_CONTRIBUTION:-10}
+      - STORAGE_CONTRIBUTION=${STORAGE_CONTRIBUTION:-5}
+    volumes:
+      - ./deployment.json:/app/deployment.json:ro
+      - worker_model_cache:/app/model_cache
+      - worker_data:/app/data
+      - ./web3-wallet-integration.js:/app/web3-wallet-integration.js:ro
+      - ./nodes/worker/metamask-integration.js:/app/nodes/worker/metamask-integration.js:ro
+    ports:
+      - "8000:8000"   # vLLM inference port
+      - "8001:8001"   # Worker API port
+    restart: unless-stopped
+    profiles: ["worker", "full", "metamask"]
+    deploy:
+      replicas: ${WORKER_REPLICAS:-1}
+
+  # Model Owner Service with MetaMask support
+  model-owner:
+    build:
+      context: .
+      dockerfile: Dockerfile.unified
+      target: owner
+    depends_on:
+      ipfs:
+        condition: service_healthy
+      geth:
+        condition: service_healthy
+      deployer:
+        condition: service_completed_successfully
+    environment:
+      - NODE_TYPE=owner
+      - ETH_NODE_URL=http://geth:8545
+      - IPFS_HOST=ipfs
+      - IPFS_PORT=5001
+      - CHAIN_ID=1337
+      - CHAIN_NAME=Decentralized vLLM Network
+      # MetaMask Integration
+      - OWNER_USE_METAMASK=${OWNER_USE_METAMASK:-true}
+      - OWNER_FALLBACK_PRIVATE_KEY=${OWNER_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
+      - OWNER_FALLBACK_ACCOUNT=${OWNER_ACCOUNT:-0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266}
+    volumes:
+      - ./deployment.json:/app/deployment.json:ro
+      - owner_model_cache:/app/model_cache
+      - ./web3-wallet-integration.js:/app/web3-wallet-integration.js:ro
+      - ./orchestrator/metamask-config.yaml:/app/orchestrator/metamask-config.yaml:ro
+    ports:
+      - "8002:8002"   # Owner management API
+    restart: unless-stopped
+    profiles: ["owner", "full", "metamask"]
+
+  # Orchestrator (Main inference engine) with MetaMask support
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile.unified
+      target: orchestrator
+    depends_on:
+      ipfs:
+        condition: service_healthy
+      geth:
+        condition: service_healthy
+      deployer:
+        condition: service_completed_successfully
+    environment:
+      - NODE_TYPE=orchestrator
+      - ETH_NODE_URL=http://geth:8545
+      - IPFS_HOST=ipfs
+      - IPFS_PORT=5001
+      - CHAIN_ID=1337
+      - CHAIN_NAME=Decentralized vLLM Network
+      # MetaMask Integration
+      - ORCHESTRATOR_USE_METAMASK=${ORCHESTRATOR_USE_METAMASK:-true}
+      - ORCHESTRATOR_FALLBACK_PRIVATE_KEY=${ORCHESTRATOR_PRIVATE_KEY:-0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a}
+      - ORCHESTRATOR_FALLBACK_ACCOUNT=${ORCHESTRATOR_ACCOUNT:-0x8ba1f109551bD432803012645Hac136c5c8579a9}
+    volumes:
+      - ./deployment.json:/app/deployment.json:ro
+      - ./orchestrator:/app/orchestrator:ro
+      - orchestrator_model_cache:/app/model_cache
+      - ./web3-wallet-integration.js:/app/web3-wallet-integration.js:ro
+    ports:
+      - "8000:8000"   # vLLM inference port
+      - "8546:8546"   # WebSocket API
+    restart: unless-stopped
+    profiles: ["orchestrator", "full", "metamask"]
+
+  # Streamlit Web Interface with MetaMask
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.unified
+      target: streamlit
+    depends_on:
+      orchestrator:
+        condition: service_started
+    environment:
+      - ETH_NODE_URL=http://geth:8545
+      - CHAIN_ID=1337
+      - CHAIN_NAME=Decentralized vLLM Network
+      # MetaMask Integration
+      - USER_USE_METAMASK=${USER_USE_METAMASK:-true}
+      - USER_FALLBACK_PRIVATE_KEY=${USER_PRIVATE_KEY:-0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a}
+      - USER_FALLBACK_ACCOUNT=${USER_ACCOUNT:-0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC}
+      - NODE_TYPE=user
+    volumes:
+      - ./deployment.json:/app/deployment.json:ro
+      - ./streamlit_app_metamask.py:/app/streamlit_app.py:ro
+      - ./web3-wallet-integration.js:/app/web3-wallet-integration.js:ro
+    ports:
+      - "8501:8501"   # Streamlit web interface
+    restart: unless-stopped
+    profiles: ["user", "full", "metamask"]
+
+  # Mobile Server with MetaMask PWA
+  mobile-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.unified
+      target: mobile
+    depends_on:
+      bootstrap-node:
+        condition: service_started
+    environment:
+      - NODE_TYPE=mobile
+      - BOOTSTRAP_NODE=${BOOTSTRAP_NODE:-bootstrap-node:30303}
+      - ETH_NODE_URL=http://geth:8545
+      - CHAIN_ID=1337
+      - CHAIN_NAME=Decentralized vLLM Network
+      # Mobile MetaMask Integration
+      - MOBILE_METAMASK_ENABLED=${MOBILE_METAMASK_ENABLED:-true}
+      - MOBILE_APP_NAME=AI Compute Network
+      - MOBILE_APP_DESCRIPTION=Decentralized AI inference network
+      - MOBILE_APP_ICON=🧠
+    volumes:
+      - ./deployment.json:/app/deployment.json:ro
+      - ./nodes/mobile/mobile_metamask.html:/app/mobile_metamask.html:ro
+      - ./nodes/mobile/sw.js:/app/sw.js:ro
+      - ./web3-wallet-integration.js:/app/web3-wallet-integration.js:ro
+    ports:
+      - "8081:8081"   # Mobile PWA server
+    restart: unless-stopped
+    profiles: ["mobile", "full", "metamask"]
+
+  # =============================================================================
+  # All-in-One Service (for single-machine deployment) with MetaMask
+  # =============================================================================
+  
+  all-in-one:
+    build:
+      context: .
+      dockerfile: Dockerfile.unified
+      target: all-in-one
+    depends_on:
+      ipfs:
+        condition: service_healthy
+      geth:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - ETH_NODE_URL=http://geth:8545
+      - IPFS_HOST=ipfs
+      - IPFS_PORT=5001
+      - CHAIN_ID=1337
+      - CHAIN_NAME=Decentralized vLLM Network
+      # MetaMask Integration for all services
+      - USE_METAMASK=${USE_METAMASK:-true}
+      - MOBILE_METAMASK_ENABLED=true
+      - PRIVATE_KEY=${PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
+      - DEFAULT_ACCOUNT=${DEFAULT_ACCOUNT:-0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266}
+    volumes:
+      - ./deployment.json:/app/deployment.json
+      - all_in_one_data:/app/data
+      - all_in_one_cache:/app/model_cache
+      - ./web3-wallet-integration.js:/app/web3-wallet-integration.js:ro
+      - ./streamlit_app_metamask.py:/app/streamlit_app_metamask.py:ro
+      - ./nodes/mobile/mobile_metamask.html:/app/mobile_metamask.html:ro
+      - ./nodes/mobile/sw.js:/app/sw.js:ro
+    ports:
+      - "8000:8000"   # vLLM inference
+      - "8001:8001"   # Worker API
+      - "8002:8002"   # Owner API
+      - "8080:8080"   # Bootstrap/Mobile
+      - "8501:8501"   # Streamlit
+      - "8546:8546"   # WebSocket
+      - "30303:30303" # P2P
+    restart: unless-stopped
+    profiles: ["all-in-one", "metamask"]
+
+  # =============================================================================
+  # MetaMask Setup and Information Services
+  # =============================================================================
+  
+  # MetaMask setup helper (runs once)
+  metamask-setup:
+    build:
+      context: .
+      dockerfile: Dockerfile.unified
+      target: development
+    depends_on:
+      geth:
+        condition: service_healthy
+    environment:
+      - ETH_NODE_URL=http://geth:8545
+      - CHAIN_ID=1337
+      - CHAIN_NAME=Decentralized vLLM Network
+    volumes:
+      - ./:/app
+    command: ["node", "scripts/setup_metamask_integration.js"]
+    restart: "no"
+    profiles: ["setup", "metamask-setup"]
+
+  # Network information service
+  network-info:
+    image: nginx:alpine
+    depends_on:
+      geth:
+        condition: service_healthy
+    volumes:
+      - ./metamask-network-config.json:/usr/share/nginx/html/network-config.json:ro
+      - ./metamask-setup-instructions.json:/usr/share/nginx/html/setup-instructions.json:ro
+      - ./METAMASK_SETUP.md:/usr/share/nginx/html/setup-guide.md:ro
+    ports:
+      - "8090:80"   # Network info server
+    restart: unless-stopped
+    profiles: ["info", "full", "metamask"]
+
+volumes:
+  ipfs_data:
+  geth_data:
+  bootstrap_data:
+  worker_model_cache:
+  worker_data:
+  owner_model_cache:
+  orchestrator_model_cache:
+  all_in_one_data:
+  all_in_one_cache:
+
+networks:
+  default:
+    name: decentralized-vllm-metamask-network

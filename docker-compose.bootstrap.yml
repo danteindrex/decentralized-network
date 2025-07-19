@@ -1,0 +1,18 @@
+# Docker Compose for Bootstrap Node
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.bootstrap.yml --profile bootstrap up
+
+version: '3.8'
+
+services:
+  bootstrap-node:
+    environment:
+      - STATIC_IP=${STATIC_IP:-localhost}
+    ports:
+      - "30303:30303"  # P2P bootstrap port
+      - "8080:8080"    # Mobile PWA server
+    volumes:
+      - bootstrap_data:/app/data
+
+  # Enable mobile server for bootstrap nodes
+  mobile-server:
+    profiles: ["bootstrap"]

@@ -75,11 +75,14 @@ async function main() {
   console.log("- orchestrator/abis/*.json");
   
   console.log("\n🔧 Next steps:");
-  console.log("1. Update orchestrator/config.yaml with contract addresses");
-  console.log("2. Use owner tools to register models:");
+  console.log("1. Copy orchestrator/config.template.yaml to orchestrator/config.yaml");
+  console.log("2. Update config.yaml with the contract addresses shown above");
+  console.log("3. Use owner tools to register models:");
   console.log("   npx hardhat run scripts/owner_tools.js register <modelId> <modelCID> <name> <description>");
-  console.log("3. Or use the Python upload tool:");
+  console.log("4. Or use the Python upload tool:");
   console.log("   cd orchestrator && python owner_upload.py --model <model_name> --model-id <id> --name <name> --description <desc>");
+  console.log("5. Start the orchestrator:");
+  console.log("   cd orchestrator && python main.py");
 }
 
 main()

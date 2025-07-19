@@ -1,30 +1,216 @@
 version: '3.8'
 
 services:
+  # IPFS for decentralized storage
   ipfs:
     image: ipfs/go-ipfs:latest
     ports:
-      - "4001:4001"
-      - "5001:5001"
-      - "8080:8080"
+      - "4001:4001"   # P2P port
+      - "5001:5001"   # API port
+      - "8080:8080"   # Gateway port
+    volumes:
+      - ipfs_data:/data/ipfs
+    environment:
+      - IPFS_PROFILE=server
+    healthcheck:
+      test: ["CMD", "ipfs", "id"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
+  # Ethereum blockchain node
   geth:
     image: ethereum/client-go:stable
-    command: ["--datadir /root/.ethereum", "--networkid 1337",--http", "--http.addr", "0.0.0.0", "--http.api", "eth,net,web3,personal,txpool,miner"]
+    command: [
+      "--datadir", "/root/.ethereum",
+      "--networkid", "1337",
+      "--http",
+      "--http.addr", "0.0.0.0",
+      "--http.port", "8545",
+      "--http.api", "eth,net,web3,personal,txpool,miner",
+      "--http.corsdomain", "*",
+      "--ws",
+      "--ws.addr", "0.0.0.0",
+      "--ws.api", "eth,net,web3,personal,txpool,miner",
+      "--ws.origins", "*",
+      "--allow-insecure-unlock",
+      "--mine",
+      "--miner.threads", "1",
+      "--miner.etherbase", "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+    ]
     volumes:
-      - ./data/geth:/root/.ethereum
+      - geth_data:/root/.ethereum
     ports:
-      - "8545:8545"
-      - "30303:30303"
+      - "8545:8545"   # HTTP RPC
+      - "8546:8546"   # WebSocket RPC
+      - "30303:30303" # P2P port
+    healthcheck:
+      test: ["CMD-SHELL", "geth attach --exec 'eth.blockNumber' http://localhost:8545 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
-  node:
-    build: .
-    environment:
-      - ETH_NODE=http://geth:8545
+  # Contract deployment service
+  deployer:
+    build:
+      context: .
+      dockerfile: Dockerfile.deployer
     depends_on:
-      - ipfs
-      - geth
+      geth:
+        condition: service_healthy
+    environment:
+      - ETH_NODE_URL=http://geth:8545
+      - PRIVATE_KEY=${OWNER_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
+      - DEFAULT_ACCOUNT=${OWNER_ACCOUNT:-0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266}
     volumes:
-      - ./model_cache:/app/model
+      - ./deployment.json:/app/deployment.json
+      - ./orchestrator/abis:/app/orchestrator/abis
+    command: ["npm", "run", "deploy:docker"]
+
+  # Bootstrap Node (Network founder/coordinator)
+  bootstrap-node:
+    build:
+      context: .
+      dockerfile: Dockerfile.bootstrap
+    depends_on:
+      ipfs:
+        condition: service_healthy
+      geth:
+        condition: service_healthy
+      deployer:
+        condition: service_completed_successfully
+    environment:
+      - NODE_TYPE=bootstrap
+      - ETH_NODE_URL=http://geth:8545
+      - IPFS_HOST=ipfs
+      - IPFS_PORT=5001
+      - PRIVATE_KEY=${BOOTSTRAP_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
+      - DEFAULT_ACCOUNT=${BOOTSTRAP_ACCOUNT:-0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266}
+      - STATIC_IP=${STATIC_IP:-localhost}
+      - BOOTSTRAP_PORT=30303
+    volumes:
+      - ./deployment.json:/app/deployment.json:ro
+      - ./orchestrator/abis:/app/orchestrator/abis:ro
+      - bootstrap_data:/app/data
     ports:
-      - "8000:8000"
+      - "30303:30303"  # P2P bootstrap port
+      - "8080:8080"    # Mobile PWA server
+    restart: unless-stopped
+    profiles: ["bootstrap", "full"]
+
+  # Worker Node (Compute provider)
+  worker-node:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    depends_on:
+      ipfs:
+        condition: service_healthy
+      geth:
+        condition: service_healthy
+      deployer:
+        condition: service_completed_successfully
+    environment:
+      - NODE_TYPE=worker
+      - ETH_NODE_URL=http://geth:8545
+      - IPFS_HOST=ipfs
+      - IPFS_PORT=5001
+      - PRIVATE_KEY=${WORKER_PRIVATE_KEY:-0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d}
+      - DEFAULT_ACCOUNT=${WORKER_ACCOUNT:-0x70997970C51812dc3A010C7d01b50e0d17dc79C8}
+      - BOOTSTRAP_NODE=${BOOTSTRAP_NODE:-bootstrap-node:30303}
+      # Resource allocation
+      - CPU_CONTRIBUTION=${CPU_CONTRIBUTION:-10}
+      - RAM_CONTRIBUTION=${RAM_CONTRIBUTION:-15}
+      - GPU_CONTRIBUTION=${GPU_CONTRIBUTION:-10}
+      - STORAGE_CONTRIBUTION=${STORAGE_CONTRIBUTION:-5}
+    volumes:
+      - ./deployment.json:/app/deployment.json:ro
+      - ./orchestrator/abis:/app/orchestrator/abis:ro
+      - worker_model_cache:/app/model_cache
+      - worker_data:/app/data
+    ports:
+      - "8000:8000"   # vLLM inference port
+    restart: unless-stopped
+    profiles: ["worker", "full"]
+    deploy:
+      replicas: ${WORKER_REPLICAS:-1}
+
+  # Model Owner Service (For uploading and managing models)
+  model-owner:
+    build:
+      context: .
+      dockerfile: Dockerfile.owner
+    depends_on:
+      ipfs:
+        condition: service_healthy
+      geth:
+        condition: service_healthy
+      deployer:
+        condition: service_completed_successfully
+    environment:
+      - NODE_TYPE=owner
+      - ETH_NODE_URL=http://geth:8545
+      - IPFS_HOST=ipfs
+      - IPFS_PORT=5001
+      - PRIVATE_KEY=${OWNER_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
+      - DEFAULT_ACCOUNT=${OWNER_ACCOUNT:-0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266}
+    volumes:
+      - ./deployment.json:/app/deployment.json:ro
+      - ./orchestrator/abis:/app/orchestrator/abis:ro
+      - owner_model_cache:/app/model_cache
+    ports:
+      - "8002:8002"   # Owner management API
+    restart: unless-stopped
+    profiles: ["owner", "full"]
+
+  # Mobile Client Server (Serves PWA)
+  mobile-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.mobile
+    depends_on:
+      bootstrap-node:
+        condition: service_started
+    environment:
+      - NODE_TYPE=mobile
+      - BOOTSTRAP_NODE=${BOOTSTRAP_NODE:-bootstrap-node:30303}
+      - ETH_NODE_URL=http://geth:8545
+    volumes:
+      - ./deployment.json:/app/deployment.json:ro
+    ports:
+      - "8081:8081"   # Mobile PWA server
+    restart: unless-stopped
+    profiles: ["mobile", "full"]
+
+  # Streamlit Web Interface (For all users)
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    depends_on:
+      worker-node:
+        condition: service_started
+    environment:
+      - ETH_NODE_URL=http://geth:8545
+      - PRIVATE_KEY=${USER_PRIVATE_KEY:-0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a}
+      - DEFAULT_ACCOUNT=${USER_ACCOUNT:-0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC}
+      - NODE_TYPE=user
+    volumes:
+      - ./deployment.json:/app/deployment.json:ro
+      - ./orchestrator:/app/orchestrator:ro
+    ports:
+      - "8501:8501"   # Streamlit web interface
+    restart: unless-stopped
+    profiles: ["user", "full"]
+
+volumes:
+  ipfs_data:
+  geth_data:
+  bootstrap_data:
+  worker_model_cache:
+  worker_data:
+  owner_model_cache:
+
+networks:
+  default:
+    name: decentralized-vllm-network

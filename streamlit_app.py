@@ -19,15 +19,45 @@ st.set_page_config(
 # Load configuration
 @st.cache_data
 def load_config():
-    """Load configuration from config.yaml"""
+    """Load configuration from environment variables and config files"""
     try:
+        # Try to load from environment variables first
+        config = {
+            'eth_node': os.getenv('ETH_NODE_URL', 'http://localhost:8545'),
+            'default_account': os.getenv('DEFAULT_ACCOUNT'),
+            'private_key': os.getenv('PRIVATE_KEY'),
+            'ipfs_host': os.getenv('IPFS_HOST', '127.0.0.1'),
+            'ipfs_port': int(os.getenv('IPFS_PORT', '5001')),
+        }
+        
+        # Try to load deployment info
+        deployment_path = os.path.join(os.path.dirname(__file__), 'deployment.json')
+        if os.path.exists(deployment_path):
+            with open(deployment_path, 'r') as f:
+                deployment = json.load(f)
+                config['contract_address'] = deployment.get('inferenceCoordinator')
+                config['model_registry_address'] = deployment.get('modelRegistry')
+        
+        # Try to load from config.yaml as fallback
         config_path = os.path.join(os.path.dirname(__file__), 'orchestrator', 'config.yaml')
-        if not os.path.exists(config_path):
-            st.error("Config file not found. Please ensure orchestrator/config.yaml exists.")
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                yaml_config = yaml.safe_load(f)
+                # Update with yaml config, but don't override env vars
+                for key, value in yaml_config.items():
+                    if key not in config or config[key] is None:
+                        config[key] = value
+        
+        # Validate required fields
+        required_fields = ['eth_node', 'default_account', 'private_key', 'contract_address']
+        missing_fields = [field for field in required_fields if not config.get(field)]
+        
+        if missing_fields:
+            st.error(f"Missing required configuration: {', '.join(missing_fields)}")
+            st.info("Please set environment variables or create orchestrator/config.yaml")
             return None
         
-        with open(config_path, 'r') as f:
-            return yaml.safe_load(f)
+        return config
     except Exception as e:
         st.error(f"Failed to load config: {e}")
         return None

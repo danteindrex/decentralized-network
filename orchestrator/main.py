@@ -15,10 +15,32 @@ import ray
 # Configuration and constants
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config.yaml')
 
-with open(CONFIG_PATH) as f:
+def load_config_with_fallbacks():
+    """Load configuration with environment variable fallbacks"""
     import yaml
-    cfg = yaml.safe_load(f)
+    
+    # Load base config
+    with open(CONFIG_PATH) as f:
+        cfg = yaml.safe_load(f)
+    
+    # Environment variable fallbacks
+    cfg['eth_node'] = os.getenv('ETH_NODE_URL', cfg.get('eth_node', 'http://localhost:8545'))
+    cfg['contract_address'] = os.getenv('CONTRACT_ADDRESS', cfg.get('contract_address'))
+    cfg['model_registry_address'] = os.getenv('MODEL_REGISTRY_ADDRESS', cfg.get('model_registry_address'))
+    cfg['default_account'] = os.getenv('DEFAULT_ACCOUNT', cfg.get('default_account'))
+    cfg['private_key'] = os.getenv('PRIVATE_KEY', cfg.get('private_key'))
+    
+    # Validation
+    required_fields = ['contract_address', 'default_account', 'private_key']
+    for field in required_fields:
+        if not cfg.get(field) or str(cfg[field]).startswith(('0xYour', 'REPLACE_WITH')):
+            print(f"❌ Missing or invalid {field}")
+            print(f"💡 Set environment variable: export {field.upper()}=your_value")
+            sys.exit(1)
+    
+    return cfg
 
+cfg = load_config_with_fallbacks()
 w3 = Web3(Web3.HTTPProvider(cfg['eth_node']))
 contract = w3.eth.contract(address=cfg['contract_address'], abi=cfg['contract_abi'])
 

@@ -188,8 +188,28 @@ echo ""
 echo "🎉 Setup completed!"
 echo "=================="
 echo ""
+echo "🔧 Automatically configuring addresses..."
+
+# Auto-update configuration with deployed addresses
+if command -v python3 &> /dev/null; then
+    print_info "Running automatic configuration update..."
+    if python3 scripts/update_config.py; then
+        print_status "Configuration updated automatically"
+    else
+        print_warning "Automatic configuration failed, manual setup required"
+    fi
+else
+    print_warning "Python3 not found, skipping automatic configuration"
+fi
+
+echo ""
 echo "📋 Next steps:"
-echo "1. Update orchestrator/config.yaml with your private key and account address"
+echo "1. Set your wallet credentials (choose one option):"
+echo "   Option A - Environment variables (recommended):"
+echo "     export DEFAULT_ACCOUNT=0xYourAddress"
+echo "     export PRIVATE_KEY=0xYourPrivateKey"
+echo ""
+echo "   Option B - Update orchestrator/config.yaml manually"
 echo "2. Upload your first model:"
 echo "   cd orchestrator"
 echo "   python owner_upload.py --model 'microsoft/DialoGPT-small' --model-id 'dialogpt-small' --name 'DialoGPT Small' --description 'Test model'"

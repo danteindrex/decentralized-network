@@ -1,0 +1,25 @@
+# Docker Compose for Worker Node
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.worker.yml --profile worker up
+
+version: '3.8'
+
+services:
+  worker-node:
+    environment:
+      - BOOTSTRAP_NODE=${BOOTSTRAP_NODE:-localhost:30303}
+      - CPU_CONTRIBUTION=${CPU_CONTRIBUTION:-10}
+      - RAM_CONTRIBUTION=${RAM_CONTRIBUTION:-15}
+      - GPU_CONTRIBUTION=${GPU_CONTRIBUTION:-10}
+      - STORAGE_CONTRIBUTION=${STORAGE_CONTRIBUTION:-5}
+    deploy:
+      replicas: ${WORKER_REPLICAS:-1}
+      resources:
+        limits:
+          cpus: '${CPU_LIMIT:-2.0}'
+          memory: ${RAM_LIMIT:-4G}
+        reservations:
+          cpus: '${CPU_RESERVATION:-0.5}'
+          memory: ${RAM_RESERVATION:-1G}
+    volumes:
+      - worker_model_cache:/app/model_cache
+      - worker_data:/app/data

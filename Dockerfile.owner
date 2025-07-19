@@ -1,0 +1,34 @@
+# Dockerfile for Model Owner
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY orchestrator/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install additional dependencies for model management
+RUN pip install fastapi uvicorn
+
+# Copy orchestrator code
+COPY orchestrator/ ./orchestrator/
+
+# Create model cache directory
+RUN mkdir -p /app/model_cache
+
+# Copy owner management API
+COPY scripts/owner_api.py ./
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8002/health || exit 1
+
+# Start owner management API
+CMD ["uvicorn", "owner_api:app", "--host", "0.0.0.0", "--port", "8002"]

@@ -6,21 +6,51 @@
     "test": "hardhat test",
     "compile": "hardhat compile",
     "deploy": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:docker": "hardhat run scripts/deploy.js --network localhost && python3 scripts/update_config.py",
     "deploy:mainnet": "hardhat run scripts/deploy.js --network mainnet",
     "node": "hardhat node",
     "setup": "./setup.sh",
-    "start": "docker-compose up",
+    "quick-start": "./setup.sh && echo 'Set your wallet: export DEFAULT_ACCOUNT=0x... PRIVATE_KEY=0x...'",
+    
+    "start": "docker-compose --profile full up",
+    "start:bootstrap": "docker-compose -f docker-compose.yml -f docker-compose.bootstrap.yml --profile bootstrap --env-file .env.bootstrap up",
+    "start:worker": "docker-compose -f docker-compose.yml -f docker-compose.worker.yml --profile worker --env-file .env.worker up",
+    "start:owner": "docker-compose -f docker-compose.yml -f docker-compose.owner.yml --profile owner --env-file .env.owner up",
+    "start:user": "docker-compose --profile user --env-file .env.user up",
     "start:dev": "docker-compose up -d ipfs geth",
+    
     "stop": "docker-compose down",
+    "stop:all": "docker-compose --profile full down",
     "logs": "docker-compose logs -f",
+    "logs:bootstrap": "docker-compose logs -f bootstrap-node",
+    "logs:worker": "docker-compose logs -f worker-node",
+    "logs:owner": "docker-compose logs -f model-owner",
+    "logs:mobile": "docker-compose logs -f mobile-server",
+    
+    "mobile:qr": "echo 'Mobile QR Code: http://localhost:8080/qr'",
+    "mobile:setup": "echo 'Mobile Setup: http://localhost:8080/setup'",
+    "mobile:app": "echo 'Mobile App: http://localhost:8080/mobile'",
+    
     "config": "python scripts/update_config.py",
+    "config:auto": "python scripts/update_config.py && echo 'Now set: export DEFAULT_ACCOUNT=0x... PRIVATE_KEY=0x...'",
     "models:list": "hardhat run scripts/owner_tools.js list",
     "models:upload": "cd orchestrator && python owner_upload.py",
-    "clean": "hardhat clean && docker-compose down -v"
+    "clean": "hardhat clean && docker-compose --profile full down -v"
+  },
+  "dependencies": {
+    "web3": "^4.0.0",
+    "ipfs-http-client": "^60.0.0",
+    "express": "^4.18.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.0",
+    "yaml": "^2.3.0",
+    "axios": "^1.6.0"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
-    "hardhat": "^2.19.0"
+    "hardhat": "^2.19.0",
+    "chai": "^4.3.0",
+    "mocha": "^10.0.0"
   },
   "keywords": [
     "blockchain",
