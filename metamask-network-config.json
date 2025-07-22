@@ -1,0 +1,13 @@
+{
+  "chainId": "0x539",
+  "chainName": "Decentralized vLLM Network",
+  "rpcUrls": [
+    "http://localhost:8545"
+  ],
+  "nativeCurrency": {
+    "name": "ETH",
+    "symbol": "ETH",
+    "decimals": 18
+  },
+  "blockExplorerUrls": null
+}

@@ -22,8 +22,7 @@ services:
   geth:
     image: ethereum/client-go:stable
     command: [
-      "--datadir", "/root/.ethereum",
-      "--networkid", "1337",
+      "--dev",
       "--http",
       "--http.addr", "0.0.0.0",
       "--http.port", "8545",
@@ -33,10 +32,7 @@ services:
       "--ws.addr", "0.0.0.0",
       "--ws.api", "eth,net,web3,personal,txpool,miner",
       "--ws.origins", "*",
-      "--allow-insecure-unlock",
-      "--mine",
-      "--miner.threads", "1",
-      "--miner.etherbase", "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+      "--dev.period", "1"
     ]
     volumes:
       - geth_data:/root/.ethereum

@@ -11,14 +11,12 @@
     "node": "hardhat node",
     "setup": "./setup.sh",
     "quick-start": "./setup.sh && echo 'Set your wallet: export DEFAULT_ACCOUNT=0x... PRIVATE_KEY=0x...'",
-    
     "start": "docker-compose --profile full up",
     "start:bootstrap": "docker-compose -f docker-compose.yml -f docker-compose.bootstrap.yml --profile bootstrap --env-file .env.bootstrap up",
     "start:worker": "docker-compose -f docker-compose.yml -f docker-compose.worker.yml --profile worker --env-file .env.worker up",
     "start:owner": "docker-compose -f docker-compose.yml -f docker-compose.owner.yml --profile owner --env-file .env.owner up",
     "start:user": "docker-compose --profile user --env-file .env.user up",
     "start:dev": "docker-compose up -d ipfs geth",
-    
     "stop": "docker-compose down",
     "stop:all": "docker-compose --profile full down",
     "logs": "docker-compose logs -f",
@@ -26,16 +24,21 @@
     "logs:worker": "docker-compose logs -f worker-node",
     "logs:owner": "docker-compose logs -f model-owner",
     "logs:mobile": "docker-compose logs -f mobile-server",
-    
     "mobile:qr": "echo 'Mobile QR Code: http://localhost:8080/qr'",
     "mobile:setup": "echo 'Mobile Setup: http://localhost:8080/setup'",
     "mobile:app": "echo 'Mobile App: http://localhost:8080/mobile'",
-    
     "config": "python scripts/update_config.py",
     "config:auto": "python scripts/update_config.py && echo 'Now set: export DEFAULT_ACCOUNT=0x... PRIVATE_KEY=0x...'",
     "models:list": "hardhat run scripts/owner_tools.js list",
     "models:upload": "cd orchestrator && python owner_upload.py",
-    "clean": "hardhat clean && docker-compose --profile full down -v"
+    "clean": "hardhat clean && docker-compose --profile full down -v",
+    "start:bootstrap:metamask": "BOOTSTRAP_USE_METAMASK=true node nodes/bootstrap/bootstrap-node.js",
+    "start:worker:metamask": "WORKER_USE_METAMASK=true node nodes/worker/worker-node.js",
+    "start:owner:metamask": "OWNER_USE_METAMASK=true python orchestrator/owner_upload.py --server",
+    "start:streamlit:metamask": "USER_USE_METAMASK=true streamlit run streamlit_app_metamask.py",
+    "setup:metamask": "node scripts/setup_metamask_integration.js",
+    "test:metamask": "npm run test && echo 'Testing MetaMask integration...'",
+    "mobile:metamask": "cd nodes/mobile && python -m http.server 8080"
   },
   "dependencies": {
     "web3": "^4.0.0",
