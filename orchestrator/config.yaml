@@ -1,5 +1,5 @@
 contract_abi: '[ /* ABI JSON here */ ]'
-contract_address: '0x2F415f51FD16900fc1F92943B1F9A07F1b7EEa14'
+contract_address: '0xe213D8b68cA3d01e51a6dBA669De59AC9A8359eE'
 default_account: 0xYourAccount
 enforce_eager: false
 eth_node: http://localhost:8545
@@ -13,8 +13,8 @@ max_model_len: 2048
 max_tokens: 512
 min_free_ram: 2147483648
 min_free_vram: 4294967296
-model_registry_address: '0x2139B5Baf855EEE55Cdb5F19dF50583585581EaD'
-node_profile_registry_address: '0xD91Fb8750Ea1decEf4cEE9D8314f4a60DE039457'
+model_registry_address: '0x3Dc2cd8F2E345951508427872d8ac9f635fBe0EC'
+node_profile_registry_address: '0x880EC53Af800b5Cd051531672EF4fc4De233bD5d'
 private_key: 0xYourPrivateKey
 ray_port: 6379
 stop_tokens: null
