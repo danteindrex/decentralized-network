@@ -1,0 +1,38 @@
+{
+  "name": "blockchain-model-storage",
+  "version": "1.0.0",
+  "description": "IPFS-based chunked model storage with blockchain integration",
+  "main": "ModelStorageManager.js",
+  "bin": {
+    "model-storage": "./cli.js"
+  },
+  "scripts": {
+    "test": "node test.js",
+    "example": "node example.js",
+    "install-cli": "npm link",
+    "demo": "node example.js"
+  },
+  "keywords": [
+    "ipfs",
+    "blockchain",
+    "model-storage",
+    "chunking",
+    "ethereum",
+    "ai",
+    "ml"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ipfs-http-client": "^56.0.3",
+    "ethers": "^6.8.0",
+    "archiver": "^6.0.1",
+    "fs-extra": "^11.3.0",
+    "commander": "^11.1.0",
+    "tar": "^6.2.0"
+  },
+  "devDependencies": {
+    "mocha": "^10.2.0",
+    "chai": "^4.3.10"
+  }
+}

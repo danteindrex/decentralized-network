@@ -1,0 +1,83 @@
+# MCP Server Configuration
+# This file defines the MCP servers that the inference engine can connect to
+
+mcp_servers:
+  # File system operations
+  filesystem:
+    transport: stdio
+    command: python
+    args: ["-m", "mcp_server_filesystem"]
+    description: "File system operations - read, write, list files"
+    enabled: true
+    
+  # Web search and browsing
+  brave_search:
+    transport: stdio
+    command: python
+    args: ["-m", "mcp_server_brave_search"]
+    description: "Web search using Brave Search API"
+    enabled: false
+    env:
+      BRAVE_API_KEY: "${BRAVE_API_KEY}"
+      
+  # Database operations
+  sqlite:
+    transport: stdio
+    command: python
+    args: ["-m", "mcp_server_sqlite"]
+    description: "SQLite database operations"
+    enabled: false
+    
+  # Git operations
+  git:
+    transport: stdio
+    command: python
+    args: ["-m", "mcp_server_git"]
+    description: "Git repository operations"
+    enabled: true
+    
+  # Time and calendar
+  time:
+    transport: stdio
+    command: python
+    args: ["-m", "mcp_server_time"]
+    description: "Time and calendar operations"
+    enabled: true
+    
+  # Custom MCP server via SSE
+  custom_sse:
+    transport: sse
+    url: "http://localhost:3001/sse"
+    description: "Custom SSE-based MCP server"
+    enabled: false
+    
+  # Memory/context management
+  memory:
+    transport: stdio
+    command: python
+    args: ["-m", "mcp_server_memory"]
+    description: "Persistent memory and context management"
+    enabled: true
+
+# MCP Client Configuration
+mcp_client:
+  # Timeout for MCP operations (seconds)
+  timeout: 30
+  
+  # Maximum number of concurrent MCP connections
+  max_connections: 5
+  
+  # Enable/disable MCP functionality globally
+  enabled: true
+  
+  # Retry configuration
+  retry:
+    max_attempts: 3
+    delay: 1.0
+    backoff_factor: 2.0
+    
+  # Logging configuration
+  logging:
+    level: INFO
+    log_mcp_calls: true
+    log_tool_results: false
