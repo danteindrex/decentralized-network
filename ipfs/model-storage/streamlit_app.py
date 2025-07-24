@@ -7,6 +7,7 @@ import requests
 from web3 import Web3
 from datetime import datetime
 import pandas as pd
+from model_storage_integration import BlockchainModelStorage, setup_model_storage
 
 # Page configuration
 st.set_page_config(
@@ -22,7 +23,7 @@ def load_config():
     try:
         # Try to load from environment variables first
         config = {
-            'eth_node': os.getenv('ETH_NODE_URL', 'http://localhost:8545'),
+            'eth_node': 'http://172.18.0.3:8545',
             'default_account': os.getenv('DEFAULT_ACCOUNT'),
             'private_key': os.getenv('PRIVATE_KEY'),
             'ipfs_host': os.getenv('IPFS_HOST', '127.0.0.1'),
@@ -253,6 +254,9 @@ def main():
     w3, contract = init_web3(config)
     if not w3 or not contract:
         st.stop()
+        
+    # Initialize Model Storage
+    storage = setup_model_storage(config)
     
     # Sidebar for configuration
     st.sidebar.header("Configuration")
@@ -286,17 +290,17 @@ def main():
         # Model selection
         st.subheader("Select AI Model")
         
-        # Predefined models (you can expand this list)
-        available_models = {
-            "Simple Test Model": "QmetMnp9xtCrfe4U4Fmjk5CZLZj3fQy1gF7M9BV31tKiNe",
-            "Custom Model": "custom"
-        }
-        
-        st.info("✅ Test model available! The 'Simple Test Model' is a working test model for demonstration.")
-        
+        try:
+            models = storage.list_models()
+            model_options = {f"{m['name']} ({m['modelId']})": m['manifestCID'] for m in models}
+            model_options["Custom Model"] = "custom"
+        except Exception as e:
+            st.error(f"Failed to load models from blockchain: {e}")
+            model_options = {"Custom Model": "custom"}
+
         model_choice = st.selectbox(
             "Choose a model:",
-            options=list(available_models.keys()),
+            options=list(model_options.keys()),
             help="Select from available AI models"
         )
         
@@ -307,7 +311,7 @@ def main():
                 help="IPFS hash of your custom model"
             )
         else:
-            model_cid = available_models[model_choice]
+            model_cid = model_options[model_choice]
             st.info(f"Using model: {model_choice}")
             st.code(f"Model CID: {model_cid}", language="text")
         
@@ -384,6 +388,16 @@ def main():
                                     st.text_area("Response Text:", response_data['response'], height=200)
                             else:
                                 st.text_area("Response:", response_data, height=200)
+
+                            # Placeholder for actual inference
+                            st.info("To run actual inference, download the model and use a library like `transformers`.")
+                            retrieved_model_path = os.path.join(storage.temp_dir, model_id)
+                            if st.button("Download and Inspect Model"):
+                                with st.spinner("Downloading model..."):
+                                    storage.retrieve_model(model_id, retrieved_model_path, extract=True)
+                                    st.success(f"Model downloaded to: {retrieved_model_path}")
+                                    st.code(f"ls -l {retrieved_model_path}")
+
                         else:
                             st.error("Failed to fetch response from IPFS")
                     else:

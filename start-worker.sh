@@ -30,11 +30,11 @@ fi
 
 # Test connections
 echo "🔍 Testing connections..."
-if curl -s --connect-timeout 5 $ETH_NODE_URL >/dev/null; then
+if curl -s --connect-timeout 5 http://$BOOTSTRAP_IP:$BASE_PORT >/dev/null; then
     echo "✅ Blockchain connection: OK"
 else
     echo "❌ Blockchain connection: FAILED"
-    echo "Make sure bootstrap node is running at $ETH_NODE_URL"
+    echo "Make sure bootstrap node is running at $BOOTSTRAP_IP"
     exit 1
 fi
 
