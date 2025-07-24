@@ -1,9 +1,24 @@
-web3
-pyyaml
-psutil
+# Existing requirements
 torch
-ray
 vllm
+ray
+web3
 ipfshttpclient
-transformers
-accelerate
+psutil
+pyyaml
+requests
+
+# MCP requirements
+mcp
+openai
+
+# Additional async requirements
+aiofiles
+asyncio-mqtt
+
+# Testing requirements
+pytest
+pytest-asyncio
+pytest-mock
+pytest-cov
+httpx

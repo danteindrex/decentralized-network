@@ -6,11 +6,45 @@ import subprocess
 import requests
 import json
 import asyncio
+import sys
+import logging
 from web3 import Web3
 from threading import Thread
 import ipfshttpclient
 from vllm import LLM, SamplingParams
 import ray
+
+# Configure comprehensive logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler('worker_node.log')
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# Import MCP client
+try:
+    from mcp_client import MCPEnhancedInference
+    MCP_AVAILABLE = True
+    print("✅ MCP client loaded successfully")
+except ImportError as e:
+    print(f"❌ MCP client not available: {e}")
+    MCP_AVAILABLE = False
+    MCPEnhancedInference = None
+
+# Import blockchain model storage
+try:
+    from model_storage_integration import BlockchainModelStorage, setup_model_storage
+    BLOCKCHAIN_STORAGE_AVAILABLE = True
+    print("✅ Blockchain model storage loaded successfully")
+except ImportError as e:
+    print(f"❌ Blockchain model storage not available: {e}")
+    BLOCKCHAIN_STORAGE_AVAILABLE = False
+    BlockchainModelStorage = None
+    setup_model_storage = None
 
 # Configuration and constants
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config.yaml')
@@ -40,9 +74,18 @@ def load_config_with_fallbacks():
     
     return cfg
 
+logger.info("🚀 Starting MCP-Enhanced Worker Node...")
+logger.info("📋 Loading configuration...")
 cfg = load_config_with_fallbacks()
+logger.info(f"✅ Configuration loaded successfully")
+logger.info(f"🔗 Connecting to Ethereum node: {cfg['eth_node']}")
+
 w3 = Web3(Web3.HTTPProvider(cfg['eth_node']))
+logger.info(f"🌐 Web3 connection status: {w3.is_connected()}")
+
+logger.info(f"📄 Loading contract at address: {cfg['contract_address']}")
 contract = w3.eth.contract(address=cfg['contract_address'], abi=cfg['contract_abi'])
+logger.info("✅ Smart contract loaded successfully")
 
 MIN_RAM = cfg['min_free_ram']
 MIN_VRAM = cfg['min_free_vram']
@@ -71,8 +114,19 @@ def get_ipfs_client():
         print(f"Failed to connect to IPFS: {e}")
         return None
 
-# Global vLLM model instance
+# Global vLLM model instance, MCP client, and blockchain storage
 vllm_model = None
+mcp_inference_engine = None
+blockchain_storage = None
+
+# Initialize blockchain storage if available
+if BLOCKCHAIN_STORAGE_AVAILABLE:
+    try:
+        blockchain_storage = setup_model_storage(cfg)
+        print("✅ Blockchain model storage initialized")
+    except Exception as e:
+        print(f"❌ Failed to initialize blockchain storage: {e}")
+        blockchain_storage = None
 
 def load_local_model(model_path):
     """Load model directly using vLLM Python API"""
@@ -97,14 +151,44 @@ def load_local_model(model_path):
         print(f"Failed to load model: {e}")
         return False
 
+async def initialize_mcp_inference_engine():
+    """Initialize MCP-enhanced inference engine"""
+    global mcp_inference_engine
+    try:
+        # Get vLLM server URL from config
+        vllm_base_url = cfg.get('vllm_base_url', 'http://localhost:8000/v1')
+        model_name = cfg.get('model_name', 'default')
+        
+        mcp_inference_engine = MCPEnhancedInference(
+            vllm_base_url=vllm_base_url,
+            model_name=model_name
+        )
+        
+        await mcp_inference_engine.initialize()
+        print("MCP-enhanced inference engine initialized successfully")
+        return True
+        
+    except Exception as e:
+        print(f"Failed to initialize MCP inference engine: {e}")
+        return False
+
 def unload_model():
     """Unload the vLLM model to free memory"""
-    global vllm_model
+    global vllm_model, mcp_inference_engine
     if vllm_model:
         del vllm_model
         vllm_model = None
         torch.cuda.empty_cache() if torch.cuda.is_available() else None
         print("Model unloaded")
+    
+    # Close MCP connections
+    if mcp_inference_engine:
+        try:
+            asyncio.run(mcp_inference_engine.close())
+            mcp_inference_engine = None
+            print("MCP inference engine closed")
+        except Exception as e:
+            print(f"Error closing MCP inference engine: {e}")
 
 def run_local_inference(prompt_text, job_id):
     """Run inference directly with local vLLM model"""
@@ -139,6 +223,28 @@ def run_local_inference(prompt_text, job_id):
     except Exception as e:
         print(f"Local inference failed for job {job_id}: {e}")
         return None
+
+async def run_mcp_enhanced_inference(prompt_text, job_id):
+    """Run inference with MCP tool support"""
+    global mcp_inference_engine
+    
+    if not mcp_inference_engine:
+        print("MCP inference engine not initialized, falling back to local inference")
+        return run_local_inference(prompt_text, job_id)
+    
+    try:
+        print(f"Running MCP-enhanced inference for job {job_id}...")
+        response_text = await mcp_inference_engine.run_inference_with_tools(
+            prompt_text, 
+            max_iterations=cfg.get('mcp_max_iterations', 5)
+        )
+        print(f"MCP-enhanced inference completed for job {job_id}")
+        return response_text.strip() if response_text else None
+        
+    except Exception as e:
+        print(f"MCP-enhanced inference failed for job {job_id}: {e}")
+        print("Falling back to local inference...")
+        return run_local_inference(prompt_text, job_id)
 
 def validate_model_format(model_path):
     """Validate that the downloaded model is in correct format"""
@@ -235,6 +341,44 @@ def fetch_from_ipfs(cid, output_path):
         print(f"Failed to fetch {cid} from IPFS: {e}")
         return False
 
+async def fetch_model_from_blockchain_storage(model_cid, output_path):
+    """
+    Fetch model using blockchain storage system (supports chunked models)
+    Falls back to regular IPFS if blockchain storage is not available
+    """
+    global blockchain_storage
+    
+    if not blockchain_storage:
+        print("Blockchain storage not available, falling back to regular IPFS")
+        return fetch_from_ipfs(model_cid, output_path)
+    
+    try:
+        print(f"Attempting to retrieve model via blockchain storage: {model_cid}")
+        
+        # First, try to find the model by CID in the blockchain registry
+        models = blockchain_storage.list_models()
+        target_model = None
+        
+        for model in models:
+            if model['manifestCID'] == model_cid:
+                target_model = model
+                break
+        
+        if target_model:
+            print(f"Found model in blockchain registry: {target_model['modelId']}")
+            result = blockchain_storage.retrieve_model(target_model['modelId'], output_path)
+            print(f"Model retrieved successfully via blockchain storage")
+            return True
+        else:
+            print(f"Model CID {model_cid} not found in blockchain registry")
+            print("Falling back to regular IPFS fetch")
+            return fetch_from_ipfs(model_cid, output_path)
+            
+    except Exception as e:
+        print(f"Error fetching model via blockchain storage: {e}")
+        print("Falling back to regular IPFS fetch")
+        return fetch_from_ipfs(model_cid, output_path)
+
 def read_prompt_from_file(prompt_file):
     """Read prompt text from file"""
     try:
@@ -245,8 +389,8 @@ def read_prompt_from_file(prompt_file):
         return None
 
 # Job handling
-def handle_job(event):
-    """Complete job handling workflow"""
+async def handle_job_async(event):
+    """Complete job handling workflow with MCP support"""
     args = event['args']
     job_id = args['jobId']
     prompt_cid = args['promptCID']
@@ -264,10 +408,10 @@ def handle_job(event):
             print(f"Joining Ray cluster at {controller}")
             join_ray(controller)
 
-        # Fetch model and prompt from IPFS
-        print("Fetching model from IPFS...")
-        if not fetch_from_ipfs(model_cid, './model'):
-            print("Failed to fetch model from IPFS")
+        # Fetch model using blockchain storage (with IPFS fallback)
+        print("Fetching model from blockchain storage...")
+        if not await fetch_model_from_blockchain_storage(model_cid, './model'):
+            print("Failed to fetch model from blockchain storage")
             return
             
         print("Fetching prompt from IPFS...")
@@ -289,17 +433,32 @@ def handle_job(event):
         # Start resource monitoring
         Thread(target=monitor_and_stop, daemon=True).start()
         
-        # Load local model
+        # Initialize MCP inference engine if enabled
+        use_mcp = cfg.get('enable_mcp', True)
+        if use_mcp:
+            print("Initializing MCP-enhanced inference engine...")
+            if await initialize_mcp_inference_engine():
+                print("MCP inference engine ready")
+            else:
+                print("MCP initialization failed, falling back to local inference")
+                use_mcp = False
+        
+        # Load local model (for fallback or direct use)
         print("Loading local model...")
         if not load_local_model('./model'):
             print("Failed to load local model")
             return
 
-        # Run local inference
-        print(f"Running local inference for job {job_id}...")
-        response_text = run_local_inference(prompt_text, job_id)
+        # Run inference (MCP-enhanced or local)
+        if use_mcp and mcp_inference_engine:
+            print(f"Running MCP-enhanced inference for job {job_id}...")
+            response_text = await run_mcp_enhanced_inference(prompt_text, job_id)
+        else:
+            print(f"Running local inference for job {job_id}...")
+            response_text = run_local_inference(prompt_text, job_id)
+            
         if not response_text:
-            print("Local inference failed")
+            print("Inference failed")
             return
 
         # Upload response to IPFS
@@ -324,18 +483,67 @@ def handle_job(event):
         unload_model()
         subprocess.run(['ray', 'stop'], capture_output=True)
 
+def handle_job(event):
+    """Synchronous wrapper for async job handling"""
+    try:
+        asyncio.run(handle_job_async(event))
+    except Exception as e:
+        print(f"Error in async job handling: {e}")
+
 # Listening loop
 def listen():
-    filter = contract.events.InferenceRequested.createFilter(fromBlock='latest')
+    logger.info("🎧 Setting up event listener for InferenceRequested events...")
+    try:
+        filter = contract.events.InferenceRequested.create_filter(from_block='latest')
+        logger.info("✅ Event filter created successfully")
+    except Exception as e:
+        logger.error(f"❌ Failed to create event filter: {e}")
+        return
+    
+    logger.info("👂 Starting to listen for inference requests...")
+    logger.info(f"📡 Listening on contract: {cfg['contract_address']}")
+    logger.info(f"👤 Worker account: {w3.eth.default_account}")
+    
+    iteration_count = 0
     while True:
-        for e in filter.get_new_entries():
-            handle_job(e)
-        time.sleep(2)
+        try:
+            iteration_count += 1
+            if iteration_count % 30 == 0:  # Log every minute (30 * 2 seconds)
+                logger.info(f"💓 Worker node heartbeat - iteration {iteration_count}")
+                logger.info(f"🔗 Web3 connected: {w3.is_connected()}")
+                
+                # Check current block number
+                try:
+                    current_block = w3.eth.block_number
+                    logger.info(f"📦 Current block: {current_block}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not get block number: {e}")
+            
+            # Check for new events
+            new_entries = filter.get_new_entries()
+            if new_entries:
+                logger.info(f"🔔 Found {len(new_entries)} new inference request(s)!")
+                for i, event in enumerate(new_entries):
+                    logger.info(f"📋 Processing event {i+1}/{len(new_entries)}: {event}")
+                    handle_job(event)
+            
+            time.sleep(2)
+            
+        except KeyboardInterrupt:
+            logger.info("🛑 Received interrupt signal, shutting down...")
+            break
+        except Exception as e:
+            logger.error(f"❌ Error in listening loop: {e}")
+            logger.info("🔄 Continuing to listen...")
+            time.sleep(5)  # Wait a bit longer on error
 
 if __name__ == '__main__':
     resources = get_resources()
     if resources[0] > cfg['head_min_ram'] and resources[2] > cfg['head_min_vram']:
-        w3.eth.defaultAccount = cfg['default_account']
+        w3.eth.default_account = cfg['default_account']
+        logger.info(f"🎯 Set default account: {cfg['default_account']}")
         listen()
     else:
+        w3.eth.default_account = cfg['default_account']
+        logger.info(f"🎯 Set default account: {cfg['default_account']}")
         listen()

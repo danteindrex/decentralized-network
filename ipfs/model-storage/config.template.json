@@ -1,0 +1,16 @@
+{
+  "ipfs": {
+    "host": "localhost",
+    "port": 5001,
+    "protocol": "http"
+  },
+  "blockchain": {
+    "rpcUrl": "http://localhost:8545",
+    "privateKey": "REPLACE_WITH_YOUR_PRIVATE_KEY",
+    "contractAddress": "REPLACE_WITH_CONTRACT_ADDRESS"
+  },
+  "storage": {
+    "chunkSize": 1048576,
+    "tempDir": "./temp"
+  }
+}

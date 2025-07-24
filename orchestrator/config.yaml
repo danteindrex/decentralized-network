@@ -1,6 +1,18 @@
-contract_abi: '[ /* ABI JSON here */ ]'
+contract_abi: [
+  {"type":"constructor","stateMutability":"undefined","payable":false,"inputs":[{"type":"address","name":"_modelRegistry"}]},
+  {"type":"event","anonymous":false,"name":"InferenceCompleted","inputs":[{"type":"uint256","name":"jobId","indexed":true},{"type":"address","name":"worker","indexed":true},{"type":"string","name":"responseCID","indexed":false}]},
+  {"type":"event","anonymous":false,"name":"InferenceRequested","inputs":[{"type":"uint256","name":"jobId","indexed":true},{"type":"address","name":"controller","indexed":true},{"type":"string","name":"promptCID","indexed":false},{"type":"string","name":"modelId","indexed":false},{"type":"string","name":"modelCID","indexed":false}]},
+  {"type":"function","name":"modelRegistry","constant":true,"stateMutability":"view","payable":false,"inputs":[],"outputs":[{"type":"address","name":""}]},
+  {"type":"function","name":"nextJobId","constant":true,"stateMutability":"view","payable":false,"inputs":[],"outputs":[{"type":"uint256","name":""}]},
+  {"type":"function","name":"owner","constant":true,"stateMutability":"view","payable":false,"inputs":[],"outputs":[{"type":"address","name":""}]},
+  {"type":"function","name":"setModelRegistry","constant":false,"payable":false,"inputs":[{"type":"address","name":"_modelRegistry"}],"outputs":[]},
+  {"type":"function","name":"submitPrompt","constant":false,"stateMutability":"payable","payable":true,"inputs":[{"type":"string","name":"promptCID"},{"type":"string","name":"modelId"}],"outputs":[{"type":"uint256","name":""}]},
+  {"type":"function","name":"submitPromptWithCID","constant":false,"stateMutability":"payable","payable":true,"inputs":[{"type":"string","name":"promptCID"},{"type":"string","name":"modelCID"}],"outputs":[{"type":"uint256","name":""}]},
+  {"type":"function","name":"submitResponse","constant":false,"payable":false,"inputs":[{"type":"uint256","name":"jobId"},{"type":"string","name":"responseCID"}],"outputs":[]},
+  {"type":"function","name":"transferOwnership","constant":false,"payable":false,"inputs":[{"type":"address","name":"newOwner"}],"outputs":[]}
+]
 contract_address: '0xe213D8b68cA3d01e51a6dBA669De59AC9A8359eE'
-default_account: 0xYourAccount
+default_account: 0x71562b71999873DB5b286dF957af199Ec94617F7
 enforce_eager: false
 eth_node: http://localhost:8545
 gpu_memory_utilization: 0.8
@@ -15,10 +27,14 @@ min_free_ram: 2147483648
 min_free_vram: 4294967296
 model_registry_address: '0x3Dc2cd8F2E345951508427872d8ac9f635fBe0EC'
 node_profile_registry_address: '0x880EC53Af800b5Cd051531672EF4fc4De233bD5d'
-private_key: 0xYourPrivateKey
+private_key: 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 ray_port: 6379
 stop_tokens: null
 temperature: 0.7
 top_p: 0.9
 trust_remote_code: true
 vllm_port: 8000
+vllm_base_url: http://localhost:8000/v1
+model_name: default
+enable_mcp: true
+mcp_max_iterations: 5
