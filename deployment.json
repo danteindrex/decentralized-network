@@ -1,7 +1,7 @@
 {
   "network": "localhost",
   "deployer": "0x71562b71999873DB5b286dF957af199Ec94617F7",
-  "nodeProfileRegistry": "0x3A220f351252089D385b29beca14e27F204c296A",
-  "modelRegistry": "0xdB7d6AB1f17c6b31909aE466702703dAEf9269Cf",
-  "inferenceCoordinator": "0x537e697c7AB75A26f9ECF0Ce810e3154dFcaaf44"
+  "nodeProfileRegistry": "0x3Dc2cd8F2E345951508427872d8ac9f635fBe0EC",
+  "modelRegistry": "0xe213D8b68cA3d01e51a6dBA669De59AC9A8359eE",
+  "inferenceCoordinator": "0xD91Fb8750Ea1decEf4cEE9D8314f4a60DE039457"
 }

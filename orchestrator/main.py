@@ -10,7 +10,7 @@ import sys
 import logging
 from web3 import Web3
 from threading import Thread
-import ipfshttpclient
+# import ipfshttpclient  # Removed due to version compatibility
 from vllm import LLM, SamplingParams
 import ray
 
@@ -101,18 +101,79 @@ def get_resources():
 RAY_PORT = cfg['ray_port']
 
 def start_ray_head():
-    subprocess.run(['ray', 'start', '--head', f'--port={RAY_PORT}'])
+    subprocess.run(['ray', 'start', '--head', f'--port={RAY_PORT}', '--host=127.0.0.1'])
 
 def join_ray(address):
-    subprocess.run(['ray', 'start', '--address', f'{address}:{RAY_PORT}'])
+    subprocess.run(['ray', 'start', '--address', f'127.0.0.1:{RAY_PORT}'])
 
-# IPFS client
-def get_ipfs_client():
+# IPFS HTTP client functions (compatible with IPFS 0.36.0)
+def upload_to_ipfs_http(content, is_json=False):
+    """Upload content to IPFS using HTTP API"""
     try:
-        return ipfshttpclient.connect('/ip4/127.0.0.1/tcp/5001')
+        ipfs_host = cfg.get('ipfs_host', '127.0.0.1')
+        ipfs_port = cfg.get('ipfs_port', 5001)
+        ipfs_url = f"http://{ipfs_host}:{ipfs_port}/api/v0/add"
+        
+        if is_json:
+            content = json.dumps(content)
+        
+        files = {'file': ('content', content)}
+        response = requests.post(ipfs_url, files=files, timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            return result['Hash']
+        else:
+            print(f"IPFS upload failed: {response.status_code} - {response.text}")
+            return None
+            
     except Exception as e:
-        print(f"Failed to connect to IPFS: {e}")
+        print(f"Failed to upload to IPFS: {e}")
         return None
+
+def fetch_from_ipfs_http(cid):
+    """Fetch content from IPFS using HTTP API"""
+    try:
+        ipfs_host = cfg.get('ipfs_host', '127.0.0.1')
+        ipfs_port = cfg.get('ipfs_port', 5001)
+        ipfs_url = f"http://{ipfs_host}:{ipfs_port}/api/v0/cat"
+        
+        params = {'arg': cid}
+        response = requests.post(ipfs_url, params=params, timeout=30)
+        
+        if response.status_code == 200:
+            return response.text
+        else:
+            print(f"IPFS fetch failed: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"Failed to fetch from IPFS: {e}")
+        return None
+
+def download_from_ipfs_http(cid, output_path):
+    """Download file from IPFS using HTTP API"""
+    try:
+        ipfs_host = cfg.get('ipfs_host', '127.0.0.1')
+        ipfs_port = cfg.get('ipfs_port', 5001)
+        ipfs_url = f"http://{ipfs_host}:{ipfs_port}/api/v0/get"
+        
+        params = {'arg': cid}
+        response = requests.post(ipfs_url, params=params, timeout=60, stream=True)
+        
+        if response.status_code == 200:
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            with open(output_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            return True
+        else:
+            print(f"IPFS download failed: {response.status_code} - {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"Failed to download from IPFS: {e}")
+        return False
 
 # Global vLLM model instance, MCP client, and blockchain storage
 vllm_model = None
@@ -275,22 +336,18 @@ def validate_model_format(model_path):
 def upload_response_to_ipfs(response_text, job_id):
     """Upload inference response to IPFS"""
     try:
-        ipfs_client = get_ipfs_client()
-        if not ipfs_client:
-            return None
-            
         # Create response object
         response_data = {
             "job_id": job_id,
             "response": response_text,
             "timestamp": int(time.time()),
-            "node_address": w3.eth.defaultAccount
+            "node_address": cfg.get('default_account', w3.eth.accounts[0] if w3.eth.accounts else None)
         }
         
-        # Upload to IPFS
-        result = ipfs_client.add_json(response_data)
-        response_cid = result
-        print(f"Response uploaded to IPFS: {response_cid}")
+        # Upload to IPFS using HTTP API
+        response_cid = upload_to_ipfs_http(response_data, is_json=True)
+        if response_cid:
+            print(f"Response uploaded to IPFS: {response_cid}")
         return response_cid
         
     except Exception as e:
@@ -301,16 +358,17 @@ def submit_response_to_contract(job_id, response_cid):
     """Submit response CID to smart contract"""
     try:
         # Build transaction
+        default_account = cfg.get('default_account')
         tx = contract.functions.submitResponse(job_id, response_cid).build_transaction({
-            'from': w3.eth.defaultAccount,
+            'from': default_account,
             'gas': 100000,
             'gasPrice': w3.to_wei('20', 'gwei'),
-            'nonce': w3.eth.get_transaction_count(w3.eth.defaultAccount)
+            'nonce': w3.eth.get_transaction_count(default_account)
         })
         
         # Sign and send transaction
         signed_tx = w3.eth.account.sign_transaction(tx, cfg['private_key'])
-        tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
         
         print(f"Response submitted to contract: {tx_hash.hex()}")
         return tx_hash
@@ -329,14 +387,16 @@ def monitor_and_stop():
         time.sleep(5)
 
 def fetch_from_ipfs(cid, output_path):
-    """Fetch content from IPFS"""
+    """Fetch content from IPFS using HTTP API"""
     try:
-        ipfs_client = get_ipfs_client()
-        if not ipfs_client:
-            return False
-            
-        ipfs_client.get(cid, target=output_path)
-        return True
+        # For text content, fetch and save to file
+        content = fetch_from_ipfs_http(cid)
+        if content:
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            return True
+        return False
     except Exception as e:
         print(f"Failed to fetch {cid} from IPFS: {e}")
         return False
@@ -401,7 +461,12 @@ async def handle_job_async(event):
     
     try:
         # Controller bootstraps cluster
-        if controller.lower() == w3.eth.defaultAccount.lower():
+        default_account = cfg.get('default_account')
+        # Convert to string and format as hex address if it's a number
+        if isinstance(default_account, int):
+            default_account = f"0x{default_account:040x}"
+        
+        if controller.lower() == default_account.lower():
             print("Starting as Ray head node")
             start_ray_head()
         else:
@@ -502,7 +567,7 @@ def listen():
     
     logger.info("👂 Starting to listen for inference requests...")
     logger.info(f"📡 Listening on contract: {cfg['contract_address']}")
-    logger.info(f"👤 Worker account: {w3.eth.default_account}")
+    logger.info(f"👤 Worker account: {cfg.get('default_account')}")
     
     iteration_count = 0
     while True:
@@ -539,11 +604,8 @@ def listen():
 
 if __name__ == '__main__':
     resources = get_resources()
+    logger.info(f"🎯 Using account: {cfg['default_account']}")
     if resources[0] > cfg['head_min_ram'] and resources[2] > cfg['head_min_vram']:
-        w3.eth.default_account = cfg['default_account']
-        logger.info(f"🎯 Set default account: {cfg['default_account']}")
         listen()
     else:
-        w3.eth.default_account = cfg['default_account']
-        logger.info(f"🎯 Set default account: {cfg['default_account']}")
         listen()

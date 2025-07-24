@@ -13,6 +13,7 @@ from typing import List, Dict, Any, Optional
 import json
 import hashlib
 import shutil
+import requests
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks
@@ -22,7 +23,7 @@ import uvicorn
 from pydantic import BaseModel
 
 # Add orchestrator to path
-sys.path.append('/app/orchestrator')
+sys.path.append('./orchestrator')
 
 try:
     from web3 import Web3
@@ -101,24 +102,29 @@ async def startup_event():
         
         # Load smart contract
         try:
-            with open('/app/deployment.json', 'r') as f:
+            with open('./deployment.json', 'r') as f:
                 deployment = json.load(f)
             
-            contract_address = deployment['InferenceCoordinator']
-            with open('/app/orchestrator/abis/InferenceCoordinator.json', 'r') as f:
-                contract_abi = json.load(f)['abi']
-            
-            contract = w3.eth.contract(address=contract_address, abi=contract_abi)
-            logger.info(f"✅ Smart contract loaded: {contract_address}")
+            contract_address = deployment['inferenceCoordinator']
+            # Skip contract loading for now since we don't have the ABI
+            contract = None
+            logger.info(f"✅ Contract address loaded: {contract_address}")
         except Exception as e:
             logger.warning(f"⚠️ Failed to load smart contract: {e}")
         
-        # Initialize IPFS client
+        # Initialize IPFS client (using HTTP API for compatibility)
         try:
             ipfs_host = os.getenv('IPFS_HOST', '127.0.0.1')
             ipfs_port = int(os.getenv('IPFS_PORT', '5001'))
-            ipfs_client = ipfshttpclient.connect(f'/ip4/{ipfs_host}/tcp/{ipfs_port}')
-            logger.info(f"✅ Connected to IPFS: {ipfs_host}:{ipfs_port}")
+            # Test IPFS connection with HTTP API (POST method required)
+            test_url = f"http://{ipfs_host}:{ipfs_port}/api/v0/version"
+            response = requests.post(test_url, timeout=5)
+            if response.status_code == 200:
+                version_info = response.json()
+                logger.info(f"✅ Connected to IPFS: {ipfs_host}:{ipfs_port} (v{version_info.get('Version')})")
+                ipfs_client = {"host": ipfs_host, "port": ipfs_port}  # Store connection info
+            else:
+                raise Exception(f"IPFS API returned {response.status_code}")
         except Exception as e:
             logger.warning(f"⚠️ Failed to connect to IPFS: {e}")
             ipfs_client = None
@@ -201,6 +207,14 @@ async def upload_model(
                 detail="Invalid file type. Supported: .safetensors, .bin, .pt, .pth"
             )
         
+        # Read the file content immediately to avoid "read of closed file" errors
+        logger.info(f"📁 Reading uploaded file: {model_file.filename}")
+        file_content = await model_file.read()
+        file_size = len(file_content)
+        filename = model_file.filename
+        
+        logger.info(f"✅ File read successfully: {file_size} bytes")
+        
         # Create model status entry
         model_status = ModelStatus(
             model_id=model_id,
@@ -211,10 +225,11 @@ async def upload_model(
         )
         model_status_db[model_id] = model_status
         
-        # Start background upload task
+        # Start background upload task with file content
         background_tasks.add_task(
-            process_model_upload,
-            model_file,
+            process_model_upload_with_content,
+            file_content,
+            filename,
             ModelInfo(
                 model_id=model_id,
                 name=name,
@@ -236,8 +251,81 @@ async def upload_model(
         logger.error(f"Error starting model upload: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-async def process_model_upload(model_file: UploadFile, model_info: ModelInfo):
-    """Background task to process model upload"""
+async def upload_with_chunking_system(file_path, model_id, name, description):
+    """Upload model using the existing Node.js chunking system"""
+    import subprocess
+    import asyncio
+    
+    try:
+        # Path to your chunking CLI
+        cli_path = "./ipfs/model-storage/cli.js"
+        
+        if not os.path.exists(cli_path):
+            logger.error(f"Chunking CLI not found at: {cli_path}")
+            return None
+        
+        # Prepare command
+        cmd = [
+            'node',
+            cli_path,
+            'store',
+            str(file_path),
+            model_id,
+            '--name', name,
+            '--description', description,
+            '--output', f'/tmp/{model_id}_result.json'
+        ]
+        
+        logger.info(f"🔧 Running chunking system: {' '.join(cmd)}")
+        
+        # Run the command asynchronously
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd='.'
+        )
+        
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode == 0:
+            logger.info("✅ Chunking system completed successfully")
+            logger.info(f"Output: {stdout.decode()}")
+            
+            # Try to read result file
+            result_file = f'/tmp/{model_id}_result.json'
+            if os.path.exists(result_file):
+                with open(result_file, 'r') as f:
+                    result = json.load(f)
+                os.remove(result_file)  # Cleanup
+                return result
+            else:
+                # Parse from stdout if no result file
+                output = stdout.decode()
+                manifest_cid = None
+                tx_hash = None
+                
+                for line in output.split('\n'):
+                    if 'Manifest CID:' in line:
+                        manifest_cid = line.split('Manifest CID:')[1].strip()
+                    elif 'Transaction:' in line:
+                        tx_hash = line.split('Transaction:')[1].strip()
+                
+                return {
+                    'success': True,
+                    'manifestCID': manifest_cid,
+                    'transactionHash': tx_hash
+                }
+        else:
+            logger.error(f"❌ Chunking system failed: {stderr.decode()}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"❌ Error running chunking system: {e}")
+        return None
+
+async def process_model_upload_with_content(file_content: bytes, filename: str, model_info: ModelInfo):
+    """Background task to process model upload with file content"""
     model_id = model_info.model_id
     
     try:
@@ -246,15 +334,18 @@ async def process_model_upload(model_file: UploadFile, model_info: ModelInfo):
         model_status_db[model_id].upload_progress = 10.0
         
         # Create model directory
-        model_dir = Path(f"/app/model_cache/{model_id}")
+        model_dir = Path(f"./model_cache/{model_id}")
         model_dir.mkdir(parents=True, exist_ok=True)
         
         # Save uploaded file
-        file_path = model_dir / model_file.filename
-        with open(file_path, "wb") as buffer:
-            content = await model_file.read()
-            buffer.write(content)
+        file_path = model_dir / filename
+        logger.info(f"📁 Saving file to: {file_path}")
         
+        with open(file_path, "wb") as buffer:
+            buffer.write(file_content)
+        
+        file_size = len(file_content)
+        logger.info(f"✅ File saved successfully: {file_size} bytes")
         model_status_db[model_id].upload_progress = 30.0
         
         # Create model metadata
@@ -266,9 +357,9 @@ async def process_model_upload(model_file: UploadFile, model_info: ModelInfo):
             "tags": model_info.tags,
             "license": model_info.license,
             "price_per_inference": model_info.price_per_inference,
-            "file_name": model_file.filename,
-            "file_size": len(content),
-            "file_hash": hashlib.sha256(content).hexdigest(),
+            "file_name": filename,
+            "file_size": file_size,
+            "file_hash": hashlib.sha256(file_content).hexdigest(),
             "uploaded_at": datetime.now().isoformat()
         }
         
@@ -279,69 +370,43 @@ async def process_model_upload(model_file: UploadFile, model_info: ModelInfo):
         
         model_status_db[model_id].upload_progress = 50.0
         
-        # Upload to IPFS
+        # Upload using chunking system
         if ipfs_client:
             try:
-                # Upload model directory to IPFS
-                ipfs_result = ipfs_client.add(str(model_dir), recursive=True)
+                # Use the existing chunking system
+                logger.info(f"📦 Using chunking system for model {model_id}")
+                model_status_db[model_id].upload_progress = 60.0
                 
-                # Get the root CID (last item in the result)
-                if isinstance(ipfs_result, list):
-                    model_cid = ipfs_result[-1]['Hash']
-                else:
-                    model_cid = ipfs_result['Hash']
+                # Call the Node.js chunking CLI
+                chunking_result = await upload_with_chunking_system(
+                    file_path, 
+                    model_id, 
+                    model_info.name, 
+                    model_info.description
+                )
                 
-                model_status_db[model_id].ipfs_cid = model_cid
-                model_status_db[model_id].upload_progress = 80.0
-                
-                logger.info(f"✅ Model {model_id} uploaded to IPFS: {model_cid}")
-                
-                # Register on blockchain
-                if contract and w3:
-                    try:
-                        # Get account
-                        account = os.getenv('OWNER_ACCOUNT')
-                        private_key = os.getenv('OWNER_PRIVATE_KEY')
-                        
-                        if account and private_key:
-                            # Build transaction
-                            tx = contract.functions.registerModel(
-                                model_info.model_id,
-                                model_cid,
-                                model_info.name,
-                                model_info.description
-                            ).build_transaction({
-                                'from': account,
-                                'gas': 500000,
-                                'gasPrice': w3.to_wei('20', 'gwei'),
-                                'nonce': w3.eth.get_transaction_count(account)
-                            })
-                            
-                            # Sign and send transaction
-                            signed_tx = w3.eth.account.sign_transaction(tx, private_key)
-                            tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-                            
-                            model_status_db[model_id].blockchain_tx = tx_hash.hex()
-                            model_status_db[model_id].upload_progress = 100.0
-                            model_status_db[model_id].status = "completed"
-                            
-                            logger.info(f"✅ Model {model_id} registered on blockchain: {tx_hash.hex()}")
-                        else:
-                            logger.warning("⚠️ No owner account configured for blockchain registration")
-                            model_status_db[model_id].status = "ipfs_only"
-                            model_status_db[model_id].upload_progress = 90.0
-                    
-                    except Exception as e:
-                        logger.error(f"❌ Blockchain registration failed: {e}")
-                        model_status_db[model_id].status = "ipfs_only"
-                        model_status_db[model_id].upload_progress = 90.0
-                else:
-                    logger.warning("⚠️ Blockchain not available")
-                    model_status_db[model_id].status = "ipfs_only"
+                if chunking_result and chunking_result.get('success'):
+                    model_cid = chunking_result.get('manifestCID')
+                    model_status_db[model_id].ipfs_cid = model_cid
                     model_status_db[model_id].upload_progress = 90.0
                     
+                    logger.info(f"✅ Model {model_id} uploaded with chunking: {model_cid}")
+                    
+                    # Check if blockchain registration was successful
+                    if chunking_result.get('transactionHash'):
+                        model_status_db[model_id].blockchain_tx = chunking_result['transactionHash']
+                        model_status_db[model_id].status = "completed"
+                        model_status_db[model_id].upload_progress = 100.0
+                        logger.info(f"✅ Model {model_id} registered on blockchain")
+                    else:
+                        model_status_db[model_id].status = "ipfs_only"
+                        model_status_db[model_id].upload_progress = 100.0
+                        logger.info("⚠️ Blockchain registration skipped")
+                else:
+                    raise Exception("Chunking system upload failed")
+                    
             except Exception as e:
-                logger.error(f"❌ IPFS upload failed: {e}")
+                logger.error(f"❌ Chunking system upload failed: {e}")
                 model_status_db[model_id].status = "failed"
                 model_status_db[model_id].upload_progress = 50.0
         else:
@@ -364,7 +429,7 @@ async def delete_model(model_id: str):
     
     try:
         # Remove from local storage
-        model_dir = Path(f"/app/model_cache/{model_id}")
+        model_dir = Path(f"./model_cache/{model_id}")
         if model_dir.exists():
             shutil.rmtree(model_dir)
         
@@ -383,7 +448,7 @@ async def download_model(model_id: str):
     if model_id not in model_status_db:
         raise HTTPException(status_code=404, detail="Model not found")
     
-    model_dir = Path(f"/app/model_cache/{model_id}")
+    model_dir = Path(f"./model_cache/{model_id}")
     if not model_dir.exists():
         raise HTTPException(status_code=404, detail="Model files not found")
     
