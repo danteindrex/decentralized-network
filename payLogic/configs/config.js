@@ -7,7 +7,7 @@ const __dirname = path.dirname(__filename)
 
 dotenv.config({ path: path.join(__dirname, '../.env') })
 
-config = {
+const config = {
     API_KEY: process.env.API_KEY,
     WEBHOOK_SECRET: process.env.BITNOB_WEBHOOK_SECRET,
     WEBHOOK_URL: process.env.BITNOB_WEBHOOK_URL

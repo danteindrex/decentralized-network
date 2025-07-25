@@ -39,7 +39,7 @@ describe("InferenceCoordinator", function () {
 
       await expect(inferenceCoordinator.submitPrompt(promptCID, modelId))
         .to.emit(inferenceCoordinator, "InferenceRequested")
-        .withArgs(1, owner.address, promptCID, modelId, modelCID);
+        .withArgs(1, owner.address, promptCID, modelId, modelCID, 0);
     });
 
     it("Should submit a prompt with direct CID using submitPromptWithCID", async function () {
@@ -48,7 +48,7 @@ describe("InferenceCoordinator", function () {
 
       await expect(inferenceCoordinator.submitPromptWithCID(promptCID, modelCID))
         .to.emit(inferenceCoordinator, "InferenceRequested")
-        .withArgs(1, owner.address, promptCID, "", modelCID);
+        .withArgs(1, owner.address, promptCID, "", modelCID, 0);
     });
 
     it("Should increment job ID after each submission", async function () {
@@ -84,7 +84,15 @@ describe("InferenceCoordinator", function () {
   });
 
   describe("Submit Response", function () {
+    beforeEach(async function () {
+      // Register a test model and create jobs for response tests
+      await modelRegistry.registerModel("test-model", "QmModelHash456", "Test Model", "A test model");
+    });
+
     it("Should submit a response and emit InferenceCompleted event", async function () {
+      // First create a job
+      await inferenceCoordinator.submitPrompt("QmPromptHash123", "test-model");
+      
       const jobId = 1;
       const responseCID = "QmResponseHash789";
 
@@ -94,14 +102,17 @@ describe("InferenceCoordinator", function () {
     });
 
     it("Should allow any address to submit a response", async function () {
-      const jobId = 1;
+      // Create two jobs first
+      await inferenceCoordinator.submitPrompt("QmPromptHash123", "test-model");
+      await inferenceCoordinator.submitPrompt("QmPromptHash456", "test-model");
+      
       const responseCID = "QmResponseHash789";
 
       // Different addresses can submit responses
-      await expect(inferenceCoordinator.connect(addr1).submitResponse(jobId, responseCID))
+      await expect(inferenceCoordinator.connect(addr1).submitResponse(1, responseCID))
         .to.not.be.reverted;
       
-      await expect(inferenceCoordinator.connect(addr2).submitResponse(jobId + 1, responseCID))
+      await expect(inferenceCoordinator.connect(addr2).submitResponse(2, responseCID))
         .to.not.be.reverted;
     });
   });
@@ -120,7 +131,7 @@ describe("InferenceCoordinator", function () {
       const submitTx = await inferenceCoordinator.connect(owner).submitPrompt(promptCID, modelId);
       await expect(submitTx)
         .to.emit(inferenceCoordinator, "InferenceRequested")
-        .withArgs(1, owner.address, promptCID, modelId, modelCID);
+        .withArgs(1, owner.address, promptCID, modelId, modelCID, 0);
 
       // Submit response from worker
       const responseTx = await inferenceCoordinator.connect(addr1).submitResponse(1, responseCID);

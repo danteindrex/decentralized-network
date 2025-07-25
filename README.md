@@ -17,7 +17,7 @@ A truly decentralized AI inference network that enables distributed LLM computat
 ### One-Command Setup (Recommended)
 
 ```bash
-git clone <your-repo>
+git clone https://github.com/danteindrex/decentralized-network
 cd decentralized-vllm-inference
 ./setup.sh
 ```

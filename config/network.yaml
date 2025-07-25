@@ -1,0 +1,191 @@
+# Unified Configuration for Decentralized vLLM Network
+# This file contains all network-wide settings
+# Individual nodes can override these settings with environment variables
+
+# Network Configuration
+network:
+  chain_id: 1337
+  network_id: 1337
+  bootstrap_nodes:
+    - "enode://default@localhost:30303"  # Will be replaced with actual bootstrap nodes
+  
+  # Port ranges for different services
+  ports:
+    blockchain_base: 30303
+    rpc_base: 8545
+    ws_base: 8546
+    health_base: 9090
+    metrics_base: 9091
+
+# Security Configuration
+security:
+  # Key management
+  key_directory: "${HOME}/.decentralized-vllm/keys"
+  use_secure_keys: true
+  
+  # Network security
+  enable_https: false
+  api_rate_limit: 100
+  request_timeout: 300
+  
+  # Blockchain security
+  minimum_confirmations: 1
+  gas_price_gwei: 20
+  gas_limit: 100000
+
+# Resource Management
+resources:
+  # Default allocation percentages
+  defaults:
+    cpu_percent: 10
+    ram_percent: 15
+    gpu_percent: 10
+    storage_percent: 5
+  
+  # Resource limits and constraints
+  limits:
+    max_jobs_concurrent: 5
+    model_cache_size: 3
+    request_timeout: 300
+    enforce_hard_limits: true
+    use_cgroups: true  # Linux only
+  
+  # Monitoring
+  monitoring:
+    resource_check_interval: 30  # seconds
+    health_check_interval: 60   # seconds
+    stats_retention: 1000       # number of entries to keep
+
+# Smart Contracts
+contracts:
+  # These will be populated after deployment
+  inference_coordinator: "${INFERENCE_COORDINATOR_ADDRESS}"
+  model_registry: "${MODEL_REGISTRY_ADDRESS}"
+  
+  # Payment settings
+  minimum_payment_wei: 1000000000000000  # 0.001 ETH
+  platform_fee_basis_points: 100        # 1%
+
+# Model Management
+models:
+  # Model caching
+  cache:
+    max_models: 3
+    max_memory_gb: 16.0
+    eviction_strategy: "lru"  # lru, largest
+  
+  # Model loading
+  loading:
+    gpu_memory_utilization: 0.8
+    max_model_len: 2048
+    enforce_eager: false
+    trust_remote_code: true
+    tensor_parallel_size: "auto"  # or specific number
+
+# Storage Configuration
+storage:
+  # IPFS settings
+  ipfs:
+    host: "127.0.0.1"
+    port: 5001
+    timeout: 30
+    retry_attempts: 3
+    
+  # Local storage
+  local:
+    data_directory: "./data"
+    temp_directory: "./temp"
+    models_directory: "./models"
+
+# Logging Configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "structured"  # structured (JSON) or simple
+  
+  # Log files
+  files:
+    enable_file_logging: true
+    log_directory: "./logs"
+    max_file_size: "100MB"
+    max_files: 10
+  
+  # Structured logging fields
+  structured:
+    include_service: true
+    include_timestamp: true
+    include_pid: true
+    include_caller_info: true
+
+# Health and Monitoring
+monitoring:
+  # Health checks
+  health:
+    enabled: true
+    port: 9090
+    check_interval: 30
+    
+  # Metrics
+  metrics:
+    enabled: true
+    port: 9091
+    format: "prometheus"
+    
+  # Circuit breakers
+  circuit_breakers:
+    failure_threshold: 5
+    recovery_timeout: 60
+    
+  # Retry policies
+  retry:
+    max_attempts: 3
+    base_delay: 1.0
+    max_delay: 60.0
+    backoff_factor: 2.0
+
+# Node Type Specific Configurations
+node_types:
+  bootstrap:
+    mining_enabled: true
+    miner_threads: 1
+    max_peers: 100
+    sync_mode: "full"
+    gc_mode: "archive"
+    static_ip_required: true
+    
+  worker:
+    max_peers: 50
+    sync_mode: "fast"
+    ai_compute_enabled: true
+    resource_enforcement: true
+    
+  owner:
+    model_upload_enabled: true
+    model_management_port: 8002
+    
+  user:
+    ui_enabled: true
+    streamlit_port: 8501
+
+# Development and Testing
+development:
+  # Test mode settings
+  test_mode: false
+  mock_blockchain: false
+  mock_ipfs: false
+  
+  # Debug settings
+  debug_mode: false
+  verbose_logging: false
+  
+  # Test keys (only for development!)
+  test_private_keys:
+    bootstrap: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+    worker: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+    owner: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+    user: "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a"
+
+# Environment Overrides
+# Any of the above settings can be overridden with environment variables
+# Format: SECTION_SUBSECTION_KEY (e.g., NETWORK_CHAIN_ID, SECURITY_API_RATE_LIMIT)
+# Arrays can be overridden with comma-separated values
+# Boolean values: true/false or 1/0
