@@ -33,8 +33,8 @@ server.registerTool("storagePayement",
     inputSchema: {email: String, btc: Number},
     outputSchema: { content: [{type:"text",data:data}] }
   },
-  async (address,email) => {
-    return sendBitcoin(address, email)
+  async (email, btc) => {
+    return createInvoice(email, btc)
       .then((response) => ({ content: [{ type: "API response", data: response}] }))
       .catch((error) => ({ content: [{ type: "error", data: `Error sending Bitcoin: ${error}` }] }))
   }
