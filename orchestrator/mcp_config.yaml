@@ -59,6 +59,60 @@ mcp_servers:
     description: "Persistent memory and context management"
     enabled: true
 
+  # =============================================================================
+  # PAYLOGIC FINANCIAL SERVICES MCP SERVERS
+  # =============================================================================
+
+  # Automated payment workflows
+  automated_payments:
+    transport: stdio
+    command: node
+    args: ["../payLogic/servers/automated-payments-server.js"]
+    description: "Automated payment workflows, scheduling, and bulk payments"
+    enabled: true
+    env:
+      BITNOB_API_KEY: "${BITNOB_API_KEY}"
+      
+  # Real-time transaction monitoring  
+  transaction_monitor:
+    transport: stdio
+    command: node
+    args: ["../payLogic/servers/transaction-monitor-server.js"]
+    description: "Real-time transaction monitoring, alerts, and analytics"
+    enabled: true
+    env:
+      BITNOB_API_KEY: "${BITNOB_API_KEY}"
+      
+  # Global payment capabilities
+  global_payments:
+    transport: stdio
+    command: node
+    args: ["../payLogic/servers/global-payments-server.js"]
+    description: "International payments, virtual cards, and currency conversion"
+    enabled: true
+    env:
+      BITNOB_API_KEY: "${BITNOB_API_KEY}"
+      
+  # Automated billing system
+  automated_billing:
+    transport: stdio
+    command: node
+    args: ["../payLogic/servers/automated-billing-server.js"]
+    description: "Subscription billing, usage tracking, and revenue management"
+    enabled: true
+    env:
+      BITNOB_API_KEY: "${BITNOB_API_KEY}"
+      
+  # Original PayLogic server (legacy)
+  paylogic_legacy:
+    transport: stdio
+    command: node
+    args: ["../payLogic/payServer.js"]
+    description: "Basic Bitcoin payments and invoicing (legacy)"
+    enabled: false
+    env:
+      BITNOB_API_KEY: "${BITNOB_API_KEY}"
+
 # MCP Client Configuration
 mcp_client:
   # Timeout for MCP operations (seconds)

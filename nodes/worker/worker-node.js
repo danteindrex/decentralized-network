@@ -15,19 +15,22 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { execSync } = require('child_process');
+const ResourceManager = require('../../scripts/resource_manager');
+const HealthMonitor = require('../../scripts/health_monitor');
 
 class WorkerNode {
     constructor(config = {}) {
         // Load user configuration if available
         const userConfig = this.loadUserConfig();
         
+        this.nodeId = 'worker-' + Date.now();
         this.config = {
             chainId: 1337,
             networkId: 1337,
             port: 30303 + Math.floor(Math.random() * 1000), // Random port
             rpcPort: 8545 + Math.floor(Math.random() * 1000),
             wsPort: 8546 + Math.floor(Math.random() * 1000),
-            dataDir: './data/worker-' + Date.now(),
+            dataDir: `./data/${this.nodeId}`,
             nodeType: this.detectNodeType(),
             bootstrapNodes: this.loadBootstrapNodes(),
             // Resource contribution settings (from user config or defaults)
@@ -35,12 +38,28 @@ class WorkerNode {
             cpuContribution: userConfig.cpuContribution || config.cpuContribution || 10,
             gpuContribution: userConfig.gpuContribution || config.gpuContribution || 10,
             ramContribution: userConfig.ramContribution || config.ramContribution || 15,
+            enforceResourceLimits: userConfig.enforceResourceLimits !== false, // Default to true
             ...config
         };
 
-        this.capabilities = this.detectCapabilities();
-        this.resourceAllocation = this.calculateResourceAllocation();
+        // Initialize resource manager
+        this.resourceManager = new ResourceManager(this.nodeId, {
+            cpuPercent: this.config.cpuContribution,
+            ramPercent: this.config.ramContribution,
+            gpuPercent: this.config.gpuContribution,
+            storagePercent: this.config.storageContribution,
+            enforceHardLimits: this.config.enforceResourceLimits
+        });
+
+        this.capabilities = this.resourceManager.capabilities;
+        this.resourceAllocation = this.resourceManager.allocation;
         this.isRunning = false;
+        
+        // Initialize health monitor
+        this.healthMonitor = new HealthMonitor('worker', this.nodeId, {
+            healthPort: this.config.healthPort || 9090,
+            metricsPort: this.config.metricsPort || 9091
+        });
         
         console.log(`🔧 Detected node type: ${this.config.nodeType}`);
         console.log(`💪 Capabilities:`, this.capabilities);
@@ -359,11 +378,53 @@ class WorkerNode {
         console.log(`🔗 Node Type: ${this.config.nodeType}`);
         console.log(`📡 Bootstrap Nodes: ${this.config.bootstrapNodes.join(', ')}`);
         
+        // Start health monitoring
+        await this.setupHealthChecks();
+        await this.healthMonitor.start();
+        
         if (this.config.nodeType === 'light') {
             await this.startLightClient();
         } else {
             await this.startFullNode();
         }
+    }
+
+    async setupHealthChecks() {
+        // Register blockchain health check
+        this.healthMonitor.registerService('blockchain', async () => {
+            try {
+                // Check if we can connect to blockchain
+                const Web3 = require('web3');
+                const web3 = new Web3(`http://localhost:${this.config.rpcPort}`);
+                const isConnected = web3.isConnected ? web3.isConnected() : await web3.eth.net.isListening();
+                return { healthy: isConnected };
+            } catch (err) {
+                return { healthy: false, error: err.message };
+            }
+        });
+
+        // Register IPFS health check
+        this.healthMonitor.registerService('ipfs', async () => {
+            try {
+                const response = await fetch('http://localhost:5001/api/v0/version');
+                return { healthy: response.ok };
+            } catch (err) {
+                return { healthy: false, error: err.message };
+            }
+        });
+
+        // Register storage health check
+        this.healthMonitor.registerService('storage', async () => {
+            try {
+                const storageDir = path.join(this.config.dataDir, 'ai-storage');
+                const exists = fs.existsSync(storageDir);
+                return { healthy: exists };
+            } catch (err) {
+                return { healthy: false, error: err.message };
+            }
+        });
+
+        console.log('✅ Health checks configured');
     }
 
     async startLightClient() {
@@ -492,21 +553,18 @@ class WorkerNode {
         // Setup resource-constrained environment
         this.setupResourceConstraints();
         
-        // Start the orchestrator for AI tasks with resource limits
+        // Start the orchestrator for AI tasks with resource limits using resource manager
         const orchestratorPath = path.join(__dirname, '../../orchestrator/main.py');
         
         if (fs.existsSync(orchestratorPath)) {
-            const python = spawn('python3', [orchestratorPath], {
+            const python = this.resourceManager.spawnConstrainedProcess('python3', [orchestratorPath], {
                 stdio: 'inherit',
+                processType: 'ai-inference',
                 env: {
-                    ...process.env,
                     ETH_NODE: `http://localhost:${this.config.rpcPort}`,
                     NODE_TYPE: 'worker',
-                    // Resource allocation environment variables
-                    ALLOCATED_CPU_CORES: this.resourceAllocation.cpu.allocated.toString(),
-                    ALLOCATED_RAM_GB: this.resourceAllocation.ram.allocated.toString(),
-                    ALLOCATED_STORAGE_GB: this.resourceAllocation.storage.allocated.toString(),
-                    ALLOCATED_GPU_MEMORY: this.resourceAllocation.gpu?.allocated?.toString() || '0',
+                    NODE_ID: this.nodeId,
+                    // Resource allocation environment variables are set automatically by ResourceManager
                     GPU_AVAILABLE: this.capabilities.gpu.available.toString(),
                     GPU_MODEL: this.capabilities.gpu.model || 'None'
                 }
@@ -515,6 +573,9 @@ class WorkerNode {
             python.on('error', (err) => {
                 console.warn('⚠️  AI Compute service failed to start:', err.message);
             });
+
+            // Store reference for cleanup
+            this.orchestratorProcess = python;
         }
 
         // Start resource monitoring
@@ -524,39 +585,45 @@ class WorkerNode {
         this.startAITaskProcessing();
     }
 
-    setupResourceConstraints() {
+    async setupResourceConstraints() {
         console.log('⚙️  Setting up resource constraints...');
         
-        // Create dedicated storage directory for AI tasks
-        const aiStorageDir = path.join(this.config.dataDir, 'ai-storage');
-        if (!fs.existsSync(aiStorageDir)) {
-            fs.mkdirSync(aiStorageDir, { recursive: true });
-        }
-
-        // Set storage quota (simplified - in production use proper quota tools)
-        const quotaFile = path.join(aiStorageDir, '.quota');
-        fs.writeFileSync(quotaFile, JSON.stringify({
-            maxSizeGB: this.resourceAllocation.storage.allocated,
-            currentSizeGB: 0,
-            createdAt: new Date().toISOString()
-        }));
-
-        console.log(`📁 AI Storage allocated: ${this.resourceAllocation.storage.allocated}GB`);
+        // Use the resource manager to setup actual limits
+        const limitsResult = await this.resourceManager.setupResourceLimits();
+        
+        console.log(`📁 Storage allocated: ${this.resourceAllocation.storage.allocated}GB`);
         console.log(`🖥️  CPU cores allocated: ${this.resourceAllocation.cpu.allocated}/${this.capabilities.cpuCores}`);
-        console.log(`🧠 RAM allocated: ${this.resourceAllocation.ram.allocated}GB/${this.capabilities.totalMemory}GB`);
+        console.log(`🧠 RAM allocated: ${this.resourceAllocation.ram.allocated}GB/${this.capabilities.totalMemGB}GB`);
         
         if (this.capabilities.gpu.available) {
-            console.log(`🎮 GPU memory allocated: ${this.resourceAllocation.gpu.allocated}GB/${this.capabilities.gpu.memory}GB`);
+            console.log(`🎮 GPU memory allocated: ${this.resourceAllocation.gpu.allocated}GB/${this.resourceAllocation.gpu.total}GB`);
         }
+
+        // Log enforcement status
+        if (limitsResult.cgroups && limitsResult.cgroups.success) {
+            console.log('✅ Hard limits enforced via cgroups');
+        } else {
+            console.log('⚠️  Using soft limits and monitoring only');
+        }
+
+        return limitsResult;
     }
 
     startResourceMonitoring() {
         console.log('📊 Starting resource monitoring...');
         
-        // Monitor resource usage every 30 seconds
+        // Resource monitoring is now handled by ResourceManager
+        // Add additional node-specific monitoring here if needed
+        
+        // Report resource status every 60 seconds
         setInterval(() => {
-            this.monitorResourceUsage();
-        }, 30000);
+            const report = this.resourceManager.getResourceReport();
+            console.log('📈 Resource Report:', {
+                nodeId: report.nodeId,
+                utilization: report.utilization,
+                activeProcesses: report.activeProcesses
+            });
+        }, 60000);
     }
 
     monitorResourceUsage() {
