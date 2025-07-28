@@ -1,6 +1,1 @@
-This is a test model file for testing the chunking functionality.
-It contains multiple lines of text to simulate a model file.
-Line 3: More content here
-Line 4: Even more content
-Line 5: Testing chunking system
-Line 6: Final line of test data
+This is a simple test model for inference testing

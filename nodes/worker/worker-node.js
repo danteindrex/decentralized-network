@@ -15,8 +15,11 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { execSync } = require('child_process');
+const express = require('express');
+const cors = require('cors');
 const ResourceManager = require('../../scripts/resource_manager');
 const HealthMonitor = require('../../scripts/health_monitor');
+const NetworkDiscovery = require('../../services/networkDiscovery');
 
 class WorkerNode {
     constructor(config = {}) {
@@ -59,6 +62,14 @@ class WorkerNode {
         this.healthMonitor = new HealthMonitor('worker', this.nodeId, {
             healthPort: this.config.healthPort || 9090,
             metricsPort: this.config.metricsPort || 9091
+        });
+        
+        // Initialize network discovery
+        this.networkDiscovery = new NetworkDiscovery({
+            nodeId: this.nodeId,
+            nodeType: 'worker',
+            port: this.config.port,
+            bootstrapNodes: this.config.bootstrapNodes
         });
         
         console.log(`🔧 Detected node type: ${this.config.nodeType}`);

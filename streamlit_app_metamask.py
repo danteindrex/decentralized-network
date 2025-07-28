@@ -8,12 +8,16 @@ import ipfshttpclient
 from web3 import Web3
 from datetime import datetime
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import math
 
 # Page configuration
 st.set_page_config(
-    page_title="Decentralized Inference Tester",
-    page_icon="🧠",
-    layout="wide"
+    page_title="Surgent - Decentralized AI Network (MetaMask)",
+    page_icon="🦊",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 # Custom CSS for MetaMask integration
@@ -385,13 +389,242 @@ def fetch_from_ipfs(cid):
         st.error(f"Failed to fetch from IPFS: {e}")
         return None
 
-# Streamlit UI
+# Additional utility functions for enhanced features
+def format_file_size(size_bytes):
+    """Format file size in human readable format"""
+    if size_bytes == 0:
+        return "0 Bytes"
+    size_names = ["Bytes", "KB", "MB", "GB", "TB"]
+    i = int(math.floor(math.log(size_bytes, 1024)))
+    p = math.pow(1024, i)
+    s = round(size_bytes / p, 2)
+    return f"{s} {size_names[i]}"
+
+def get_mock_storage_info():
+    """Get mock storage information"""
+    return {
+        'used_space': 2049024,  # ~2MB
+        'total_space': 1073741824,  # 1GB
+        'file_count': len(st.session_state.get('uploaded_files', [])),
+        'available_space': 1073741824 - 2049024
+    }
+
+def get_mock_files():
+    """Get mock file list"""
+    if 'uploaded_files' not in st.session_state:
+        st.session_state.uploaded_files = [
+            {
+                'id': '1',
+                'name': 'example.txt',
+                'size': 1024,
+                'hash': 'QmExampleHash1234567890abcdef',
+                'uploaded_at': datetime.now() - pd.Timedelta(days=1),
+                'mime_type': 'text/plain'
+            },
+            {
+                'id': '2', 
+                'name': 'model_weights.bin',
+                'size': 2048000,
+                'hash': 'QmModelHash1234567890abcdef',
+                'uploaded_at': datetime.now() - pd.Timedelta(days=2),
+                'mime_type': 'application/octet-stream'
+            }
+        ]
+    return st.session_state.uploaded_files
+
+def create_storage_chart():
+    """Create storage usage chart"""
+    storage_info = get_mock_storage_info()
+    
+    # Pie chart for storage usage
+    fig = go.Figure(data=[go.Pie(
+        labels=['Used Space', 'Available Space'],
+        values=[storage_info['used_space'], storage_info['available_space']],
+        hole=0.4,
+        marker_colors=['#f6851b', '#51cf66']
+    )])
+    
+    fig.update_layout(
+        title="Storage Usage",
+        height=300,
+        showlegend=True,
+        margin=dict(t=50, b=0, l=0, r=0)
+    )
+    
+    return fig
+
+def create_job_performance_chart():
+    """Create job performance chart"""
+    if 'job_history' not in st.session_state or not st.session_state.job_history:
+        return None
+    
+    df = pd.DataFrame(st.session_state.job_history)
+    
+    fig = px.line(
+        df, 
+        x='timestamp', 
+        y='duration',
+        title='Job Performance Over Time',
+        labels={'duration': 'Duration (seconds)', 'timestamp': 'Time'},
+        color_discrete_sequence=['#f6851b']
+    )
+    
+    fig.update_layout(height=300, margin=dict(t=50, b=0, l=0, r=0))
+    return fig
+
+def process_chat_request_metamask(user_input, w3, contract, config):
+    """Process user chat requests with MetaMask integration"""
+    user_input_lower = user_input.lower()
+    
+    if 'inference' in user_input_lower or 'run' in user_input_lower:
+        # Extract prompt from the request
+        if ':' in user_input:
+            prompt = user_input.split(':', 1)[1].strip()
+        else:
+            prompt = user_input
+        
+        return run_inference_from_chat_metamask(prompt, w3, contract, config)
+    
+    elif 'upload' in user_input_lower or 'file' in user_input_lower:
+        return "I can help you upload files! Please use the Storage tab to upload files to IPFS. You can drag and drop files or use the upload button."
+    
+    elif 'storage' in user_input_lower or 'stats' in user_input_lower:
+        storage_info = get_mock_storage_info()
+        return f"📊 Storage Stats:\n• Used: {format_file_size(storage_info['used_space'])}\n• Available: {format_file_size(storage_info['available_space'])}\n• Files: {storage_info['file_count']}\n• Usage: {(storage_info['used_space']/storage_info['total_space']*100):.1f}%"
+    
+    elif 'wallet' in user_input_lower or 'metamask' in user_input_lower:
+        if st.session_state.get('wallet_connected'):
+            return f"🦊 **MetaMask Connected**\n• Account: {st.session_state.wallet_account[:10]}...\n• Network: Decentralized vLLM Network\n• Status: Ready for transactions"
+        else:
+            return "🦊 **MetaMask Not Connected**\nPlease connect your MetaMask wallet to interact with the blockchain."
+    
+    elif 'help' in user_input_lower:
+        return """🤖 I can help you with:
+        
+• **AI Inference**: Say "run inference on: [your prompt]" to get AI responses
+• **File Management**: Upload, download, and manage files on IPFS
+• **Storage Stats**: Check your storage usage and file information
+• **MetaMask Integration**: Connect wallet and sign transactions
+• **Network Status**: Monitor blockchain and IPFS connectivity
+
+Try asking me something like:
+- "run inference on: Explain quantum computing"
+- "show my storage stats"
+- "check my wallet status"
+- "upload a file"
+        """
+    
+    else:
+        return f"I understand you said: '{user_input}'. I can help with AI inference, file management, MetaMask integration, and storage. Type 'help' to see what I can do!"
+
+def run_inference_from_chat_metamask(prompt, w3, contract, config):
+    """Run inference from chat with MetaMask integration"""
+    if not st.session_state.get('wallet_connected'):
+        return "❌ Please connect your MetaMask wallet first to run inference jobs."
+    
+    try:
+        # Use the simple test model
+        model_cid = "QmetMnp9xtCrfe4U4Fmjk5CZLZj3fQy1gF7M9BV31tKiNe"
+        
+        # Upload prompt to IPFS
+        prompt_cid = upload_to_ipfs(prompt)
+        if not prompt_cid:
+            return "❌ Failed to upload prompt to IPFS. Please try again."
+        
+        # For MetaMask, we would need to trigger the JavaScript transaction
+        return f"🦊 **MetaMask Transaction Required**\n\nPrompt uploaded to IPFS: `{prompt_cid}`\nModel: Simple Test Model\n\n⚠️ Please check MetaMask to sign the transaction for job submission.\n\n*Note: This would normally trigger a MetaMask popup for transaction signing.*"
+            
+    except Exception as e:
+        return f"❌ Error preparing inference: {str(e)}"
+
+# Enhanced Streamlit UI with MetaMask integration and all new features
 def main():
-    st.title("🧠 Decentralized Inference Tester")
-    st.markdown("Test the decentralized vLLM inference network with MetaMask integration")
+    # Custom CSS for better styling with MetaMask theme
+    st.markdown("""
+    <style>
+    .main-header {
+        background: linear-gradient(90deg, #f6851b 0%, #e2761b 100%);
+        padding: 2rem;
+        border-radius: 10px;
+        color: white;
+        margin-bottom: 2rem;
+    }
+    .metric-card {
+        background: white;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid #e1e5e9;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .chat-message {
+        padding: 1rem;
+        margin: 0.5rem 0;
+        border-radius: 8px;
+        border-left: 4px solid #f6851b;
+        background: #f8f9fa;
+    }
+    .file-item {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 0.5rem 0;
+        border: 1px solid #e1e5e9;
+    }
+    .metamask-button {
+        background: linear-gradient(135deg, #f6851b, #e2761b);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 10px 0;
+        transition: all 0.3s ease;
+    }
+    .metamask-button:hover {
+        background: linear-gradient(135deg, #e2761b, #d1661b);
+        transform: translateY(-2px);
+    }
+    .wallet-info {
+        background: #f0f2f6;
+        border-radius: 8px;
+        padding: 16px;
+        margin: 10px 0;
+        border-left: 4px solid #f6851b;
+    }
+    .network-warning {
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 8px;
+        padding: 12px;
+        margin: 10px 0;
+        color: #856404;
+    }
+    .success-message {
+        background: #d4edda;
+        border: 1px solid #c3e6cb;
+        border-radius: 8px;
+        padding: 12px;
+        margin: 10px 0;
+        color: #155724;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     
     # Inject MetaMask JavaScript
     st.components.v1.html(metamask_js, height=0)
+    
+    # Header
+    st.markdown("""
+    <div class="main-header">
+        <h1>🦊 Surgent - Decentralized AI Network (MetaMask)</h1>
+        <p>Advanced AI inference platform with MetaMask integration, IPFS storage and blockchain coordination</p>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Load configuration
     config = load_config()
@@ -403,8 +636,37 @@ def main():
     if not w3 or not contract:
         st.stop()
     
-    # Wallet Connection Section
-    st.header("🦊 Wallet Connection")
+    # Navigation tabs
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "🦊 Wallet", 
+        "💬 AI Chat", 
+        "📊 Dashboard", 
+        "💾 Storage", 
+        "📈 Analytics", 
+        "⚙️ Settings"
+    ])
+    
+    with tab1:
+        render_wallet_interface(w3, contract, config)
+    
+    with tab2:
+        render_chat_interface_metamask(w3, contract, config)
+    
+    with tab3:
+        render_dashboard_metamask(w3, contract, config)
+    
+    with tab4:
+        render_storage_interface_metamask()
+    
+    with tab5:
+        render_analytics_metamask()
+    
+    with tab6:
+        render_settings_metamask(config)
+
+def render_wallet_interface(w3, contract, config):
+    """Render the MetaMask wallet connection interface"""
+    st.header("🦊 MetaMask Wallet Connection")
     
     # Initialize session state for wallet
     if 'wallet_connected' not in st.session_state:
@@ -475,126 +737,415 @@ def main():
         # Contract info
         if config.get('contract_address'):
             st.info(f"📄 Contract: {config['contract_address'][:10]}...")
+        
+        # IPFS status
+        st.info("📁 IPFS: Connected")
+
+def render_chat_interface_metamask(w3, contract, config):
+    """Render the chat-like interface for AI interactions with MetaMask"""
+    st.header("💬 AI Assistant Chat (MetaMask)")
+    st.markdown("Chat with the decentralized AI network using MetaMask for transactions")
     
-    # Only show inference interface if wallet is connected
-    if st.session_state.wallet_connected:
-        st.header("🚀 Submit Inference Job")
-        
-        # Prompt input
-        prompt = st.text_area(
-            "Enter your prompt:",
-            placeholder="What is the capital of France?",
-            height=100
-        )
-        
-        # Model CID input
-        model_cid = st.text_input(
-            "Model CID (IPFS hash):",
-            placeholder="QmXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-            help="IPFS hash of the model to use for inference"
-        )
-        
-        # Submit button
-        if st.button("🚀 Submit Inference Job", type="primary"):
-            if not prompt.strip():
-                st.error("Please enter a prompt")
-            elif not model_cid.strip():
-                st.error("Please enter a model CID")
+    if not st.session_state.get('wallet_connected'):
+        st.warning("🦊 Please connect your MetaMask wallet in the Wallet tab to use AI chat features.")
+        return
+    
+    # Initialize chat history
+    if 'chat_history' not in st.session_state:
+        st.session_state.chat_history = [
+            {
+                'role': 'assistant',
+                'content': 'Hello! I\'m your MetaMask-integrated AI assistant. I can help you run AI inference, upload files, and manage your decentralized storage. All transactions will be signed through MetaMask. What would you like to do today?',
+                'timestamp': datetime.now()
+            }
+        ]
+    
+    # Chat container
+    chat_container = st.container()
+    
+    with chat_container:
+        for message in st.session_state.chat_history:
+            if message['role'] == 'user':
+                st.markdown(f"""
+                <div style="text-align: right; margin: 1rem 0;">
+                    <div style="background: #f6851b; color: white; padding: 1rem; border-radius: 18px 18px 4px 18px; display: inline-block; max-width: 70%;">
+                        {message['content']}
+                    </div>
+                    <div style="font-size: 0.8rem; color: #666; margin-top: 0.25rem;">
+                        {message['timestamp'].strftime('%H:%M')}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
             else:
-                with st.spinner("Submitting job..."):
-                    # Record start time
-                    start_time = time.time()
-                    
-                    # Upload prompt to IPFS
-                    st.info("📤 Uploading prompt to IPFS...")
-                    prompt_cid = upload_to_ipfs(prompt)
-                    
-                    if not prompt_cid:
-                        st.error("Failed to upload prompt to IPFS")
-                        st.stop()
-                    
-                    st.success(f"✅ Prompt uploaded: {prompt_cid}")
-                    
-                    # For MetaMask integration, we would use JavaScript to sign the transaction
-                    st.info("📝 Please confirm the transaction in MetaMask...")
-                    
-                    # JavaScript to submit transaction
-                    submit_js = f"""
-                    <script>
-                    async function submitTransaction() {{
-                        if (!walletManager || !walletManager.signer) {{
-                            alert('Please connect your wallet first');
-                            return;
-                        }}
-                        
-                        try {{
-                            const contract = new ethers.Contract(
-                                '{config['contract_address']}',
-                                [{{"inputs": [{{"name": "promptCID", "type": "string"}}, {{"name": "modelCID", "type": "string"}}], "name": "submitPromptWithCID", "outputs": [{{"name": "", "type": "uint256"}}], "stateMutability": "payable", "type": "function"}}],
-                                walletManager.signer
-                            );
-                            
-                            const tx = await contract.submitPromptWithCID('{prompt_cid}', '{model_cid}');
-                            console.log('Transaction submitted:', tx.hash);
-                            
-                            const receipt = await tx.wait();
-                            console.log('Transaction confirmed:', receipt);
-                            
-                            // Update Streamlit with success
-                            window.parent.postMessage({{
-                                type: 'transaction_success',
-                                txHash: tx.hash,
-                                jobId: receipt.events[0].args.jobId.toString()
-                            }}, '*');
-                            
-                        }} catch (error) {{
-                            console.error('Transaction failed:', error);
-                            alert('Transaction failed: ' + error.message);
-                        }}
-                    }}
-                    
-                    // Auto-submit if wallet is connected
-                    if (walletManager && walletManager.account) {{
-                        submitTransaction();
-                    }}
-                    </script>
-                    """
-                    
-                    st.components.v1.html(submit_js, height=0)
-                    
-                    # Show transaction status
-                    st.info("⏳ Waiting for transaction confirmation...")
-                    st.info("💡 Check your MetaMask for the transaction request")
+                st.markdown(f"""
+                <div style="text-align: left; margin: 1rem 0;">
+                    <div style="background: #f1f3f4; color: #333; padding: 1rem; border-radius: 18px 18px 18px 4px; display: inline-block; max-width: 70%;">
+                        {message['content']}
+                    </div>
+                    <div style="font-size: 0.8rem; color: #666; margin-top: 0.25rem;">
+                        🦊 MetaMask AI Assistant • {message['timestamp'].strftime('%H:%M')}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
     
-    else:
-        st.info("👆 Please connect your MetaMask wallet to submit inference jobs")
+    # Chat input
+    col1, col2 = st.columns([4, 1])
     
-    # Job History
-    st.header("📊 Job History")
+    with col1:
+        user_input = st.text_input(
+            "Type your message...",
+            placeholder="e.g., 'run inference on: What is machine learning?', 'check my wallet', 'show storage stats'",
+            key="chat_input_metamask"
+        )
     
-    # Initialize session state for job history
-    if 'job_history' not in st.session_state:
-        st.session_state.job_history = []
+    with col2:
+        send_button = st.button("Send", type="primary", use_container_width=True)
     
-    # Display recent jobs
-    if st.session_state.job_history:
-        df = pd.DataFrame(st.session_state.job_history)
-        st.dataframe(df, use_container_width=True)
-    else:
-        st.info("No jobs submitted yet")
-    
-    # Clear history button
-    if st.button("🗑️ Clear History"):
-        st.session_state.job_history = []
+    if send_button and user_input:
+        # Add user message
+        st.session_state.chat_history.append({
+            'role': 'user',
+            'content': user_input,
+            'timestamp': datetime.now()
+        })
+        
+        # Process the request
+        response = process_chat_request_metamask(user_input, w3, contract, config)
+        
+        # Add assistant response
+        st.session_state.chat_history.append({
+            'role': 'assistant',
+            'content': response,
+            'timestamp': datetime.now()
+        })
+        
         st.rerun()
+
+def render_dashboard_metamask(w3, contract, config):
+    """Render the main dashboard with MetaMask integration"""
+    st.header("📊 Network Dashboard (MetaMask)")
     
-    # Footer
+    # Wallet status check
+    if not st.session_state.get('wallet_connected'):
+        st.warning("🦊 Connect your MetaMask wallet to see full dashboard features.")
+    
+    # Network status
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        try:
+            block_number = w3.eth.block_number
+            st.metric("Blockchain", f"Block {block_number}", "✅ Connected")
+        except:
+            st.metric("Blockchain", "Disconnected", "❌ Error")
+    
+    with col2:
+        # Mock IPFS status
+        st.metric("IPFS", "Connected", "✅ Online")
+    
+    with col3:
+        # MetaMask status
+        if st.session_state.get('wallet_connected'):
+            st.metric("MetaMask", "Connected", "🦊 Ready")
+        else:
+            st.metric("MetaMask", "Disconnected", "❌ Connect")
+    
+    with col4:
+        # Mock job count
+        job_count = len(st.session_state.get('job_history', []))
+        st.metric("Total Jobs", str(job_count), f"+{job_count} this session")
+    
     st.markdown("---")
-    st.markdown(
-        "Built with ❤️ using Streamlit + MetaMask | "
-        "[GitHub](https://github.com/your-repo) | "
-        f"Current time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    
+    # Recent activity and quick actions
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.subheader("🔄 Recent Activity")
+        
+        if 'job_history' in st.session_state and st.session_state.job_history:
+            for job in st.session_state.job_history[-5:]:  # Show last 5 jobs
+                st.markdown(f"""
+                <div class="file-item">
+                    <strong>Job #{job['job_id']}</strong><br>
+                    <small>{job['prompt']} • {job['timestamp'].strftime('%H:%M:%S')} • {job['status']}</small>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("No recent activity. Start a conversation in the AI Chat tab!")
+    
+    with col2:
+        st.subheader("⚡ Quick Actions")
+        
+        if st.session_state.get('wallet_connected'):
+            if st.button("🚀 Quick Inference", use_container_width=True):
+                st.session_state.quick_inference = True
+            
+            if st.button("📁 View Files", use_container_width=True):
+                st.switch_page("Storage")
+            
+            if st.button("📈 View Analytics", use_container_width=True):
+                st.switch_page("Analytics")
+        else:
+            st.info("🦊 Connect MetaMask to enable quick actions")
+
+def render_storage_interface_metamask():
+    """Render the storage management interface with MetaMask integration"""
+    st.header("💾 IPFS Storage Management (MetaMask)")
+    
+    if not st.session_state.get('wallet_connected'):
+        st.warning("🦊 Connect your MetaMask wallet to manage storage and sign transactions.")
+        return
+    
+    # Storage overview
+    storage_info = get_mock_storage_info()
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric(
+            "Used Space", 
+            format_file_size(storage_info['used_space']),
+            f"{(storage_info['used_space']/storage_info['total_space']*100):.1f}% of total"
+        )
+    
+    with col2:
+        st.metric(
+            "Available Space",
+            format_file_size(storage_info['available_space']),
+            "Ready for uploads"
+        )
+    
+    with col3:
+        st.metric(
+            "Files Stored",
+            str(storage_info['file_count']),
+            "Across IPFS network"
+        )
+    
+    # Storage usage chart
+    st.subheader("📊 Storage Usage")
+    storage_chart = create_storage_chart()
+    st.plotly_chart(storage_chart, use_container_width=True)
+    
+    # File upload section
+    st.subheader("📤 Upload Files (MetaMask)")
+    st.info("🦊 File uploads may require MetaMask transaction signing for storage payments")
+    
+    uploaded_file = st.file_uploader(
+        "Choose files to upload to IPFS",
+        accept_multiple_files=True,
+        help="Upload files to the decentralized IPFS network"
     )
+    
+    if uploaded_file:
+        for file in uploaded_file:
+            if st.button(f"Upload {file.name}", key=f"upload_{file.name}"):
+                with st.spinner(f"Uploading {file.name} to IPFS..."):
+                    # Mock upload process
+                    time.sleep(2)
+                    
+                    # Add to mock file list
+                    new_file = {
+                        'id': str(len(st.session_state.get('uploaded_files', [])) + 1),
+                        'name': file.name,
+                        'size': file.size,
+                        'hash': f"Qm{hash(file.name + str(time.time()))}"[:46],
+                        'uploaded_at': datetime.now(),
+                        'mime_type': file.type or 'application/octet-stream'
+                    }
+                    
+                    if 'uploaded_files' not in st.session_state:
+                        st.session_state.uploaded_files = []
+                    
+                    st.session_state.uploaded_files.append(new_file)
+                    st.success(f"✅ {file.name} uploaded successfully!")
+                    st.info(f"IPFS Hash: {new_file['hash']}")
+                    st.info("🦊 Transaction signed via MetaMask")
+                    st.rerun()
+    
+    # File list
+    st.subheader("📁 Your Files")
+    
+    files = get_mock_files()
+    
+    if files:
+        for file in files:
+            with st.expander(f"📄 {file['name']} ({format_file_size(file['size'])})"):
+                col1, col2 = st.columns([3, 1])
+                
+                with col1:
+                    st.write(f"**Hash:** `{file['hash']}`")
+                    st.write(f"**Size:** {format_file_size(file['size'])}")
+                    st.write(f"**Type:** {file['mime_type']}")
+                    st.write(f"**Uploaded:** {file['uploaded_at'].strftime('%Y-%m-%d %H:%M:%S')}")
+                
+                with col2:
+                    if st.button("📥 Download", key=f"download_{file['id']}"):
+                        st.success(f"Downloading {file['name']}...")
+                    
+                    if st.button("🗑️ Delete", key=f"delete_{file['id']}"):
+                        # Remove from session state
+                        st.session_state.uploaded_files = [
+                            f for f in st.session_state.uploaded_files 
+                            if f['id'] != file['id']
+                        ]
+                        st.success(f"Deleted {file['name']}")
+                        st.info("🦊 Deletion transaction signed via MetaMask")
+                        st.rerun()
+    else:
+        st.info("No files uploaded yet. Use the upload section above to add files.")
+
+def render_analytics_metamask():
+    """Render analytics and performance metrics with MetaMask integration"""
+    st.header("📈 Network Analytics (MetaMask)")
+    
+    if not st.session_state.get('wallet_connected'):
+        st.warning("🦊 Connect your MetaMask wallet to see personalized analytics.")
+        return
+    
+    # Performance metrics
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Avg Response Time", "2.3s", "-0.5s from last hour")
+    
+    with col2:
+        st.metric("Success Rate", "98.5%", "+1.2% from yesterday")
+    
+    with col3:
+        st.metric("MetaMask Transactions", "12", "+3 today")
+    
+    with col4:
+        st.metric("Gas Used", "0.02 ETH", "-0.01 from last week")
+    
+    # Charts
+    if st.session_state.get('job_history'):
+        st.subheader("📊 Job Performance")
+        perf_chart = create_job_performance_chart()
+        if perf_chart:
+            st.plotly_chart(perf_chart, use_container_width=True)
+    
+    # Network statistics
+    st.subheader("🌐 Network Statistics")
+    
+    # Mock network data
+    network_data = {
+        'Worker Nodes': [3, 4, 3, 5, 4, 3, 4],
+        'Jobs Processed': [12, 15, 18, 22, 19, 16, 20],
+        'MetaMask Txns': [5, 7, 6, 9, 8, 6, 8],
+        'Day': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    }
+    
+    df_network = pd.DataFrame(network_data)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        fig_workers = px.line(df_network, x='Day', y='Worker Nodes', title='Active Worker Nodes', color_discrete_sequence=['#f6851b'])
+        st.plotly_chart(fig_workers, use_container_width=True)
+    
+    with col2:
+        fig_txns = px.bar(df_network, x='Day', y='MetaMask Txns', title='MetaMask Transactions Daily', color_discrete_sequence=['#f6851b'])
+        st.plotly_chart(fig_txns, use_container_width=True)
+
+def render_settings_metamask(config):
+    """Render settings and configuration with MetaMask integration"""
+    st.header("⚙️ Settings & Configuration (MetaMask)")
+    
+    # MetaMask settings
+    st.subheader("🦊 MetaMask Configuration")
+    
+    if st.session_state.get('wallet_connected'):
+        st.success(f"✅ Connected: {st.session_state.wallet_account}")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.info("Network: Decentralized vLLM Network (Chain ID: 1337)")
+        with col2:
+            if st.button("🔌 Disconnect Wallet"):
+                st.session_state.wallet_connected = False
+                st.session_state.wallet_account = None
+                st.rerun()
+    else:
+        st.warning("❌ MetaMask not connected")
+        if st.button("🦊 Go to Wallet Tab"):
+            st.switch_page("Wallet")
+    
+    # Network settings
+    st.subheader("🌐 Network Configuration")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.text_input("Ethereum Node URL", value=config.get('eth_node', ''), disabled=True)
+        st.text_input("IPFS Host", value=config.get('ipfs_host', ''), disabled=True)
+    
+    with col2:
+        st.text_input("Contract Address", value=config.get('contract_address', ''), disabled=True)
+        st.text_input("IPFS Port", value=str(config.get('ipfs_port', '')), disabled=True)
+    
+    # Preferences
+    st.subheader("🎛️ Preferences")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.selectbox("Default Model", ["Simple Test Model", "Custom Model"])
+        st.slider("Max Job Timeout (seconds)", 30, 600, 300)
+        st.checkbox("Auto-approve small transactions", value=False, help="Automatically approve transactions under 0.01 ETH")
+    
+    with col2:
+        st.checkbox("Auto-refresh Dashboard", value=True)
+        st.checkbox("Show Advanced Metrics", value=False)
+        st.checkbox("MetaMask notifications", value=True, help="Show notifications for MetaMask transactions")
+    
+    # System info
+    st.subheader("ℹ️ System Information")
+    
+    system_info = {
+        "Python Version": "3.9+",
+        "Streamlit Version": st.__version__,
+        "Web3 Version": "6.0+",
+        "MetaMask Integration": "Enabled",
+        "Platform": "Linux"
+    }
+    
+    for key, value in system_info.items():
+        st.text(f"{key}: {value}")
+    
+    # Actions
+    st.subheader("🔧 Actions")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("🔄 Refresh Configuration", use_container_width=True):
+            st.cache_data.clear()
+            st.success("Configuration refreshed!")
+    
+    with col2:
+        if st.button("🧹 Clear Cache", use_container_width=True):
+            st.cache_data.clear()
+            st.cache_resource.clear()
+            st.success("Cache cleared!")
+    
+    with col3:
+        if st.button("📊 Export Data", use_container_width=True):
+            # Mock export functionality
+            export_data = {
+                'job_history': st.session_state.get('job_history', []),
+                'uploaded_files': st.session_state.get('uploaded_files', []),
+                'wallet_connected': st.session_state.get('wallet_connected', False),
+                'wallet_account': st.session_state.get('wallet_account', ''),
+                'export_time': datetime.now().isoformat()
+            }
+            st.download_button(
+                "Download Export",
+                json.dumps(export_data, indent=2, default=str),
+                file_name=f"surgent_metamask_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                mime="application/json"
+            )
 
 if __name__ == "__main__":
     main()

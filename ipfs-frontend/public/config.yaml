@@ -1,0 +1,145 @@
+contract_abi:
+- inputs:
+  - name: _modelRegistry
+    type: address
+  payable: false
+  stateMutability: undefined
+  type: constructor
+- anonymous: false
+  inputs:
+  - indexed: true
+    name: jobId
+    type: uint256
+  - indexed: true
+    name: worker
+    type: address
+  - indexed: false
+    name: responseCID
+    type: string
+  name: InferenceCompleted
+  type: event
+- anonymous: false
+  inputs:
+  - indexed: true
+    name: jobId
+    type: uint256
+  - indexed: true
+    name: controller
+    type: address
+  - indexed: false
+    name: promptCID
+    type: string
+  - indexed: false
+    name: modelId
+    type: string
+  - indexed: false
+    name: modelCID
+    type: string
+  name: InferenceRequested
+  type: event
+- constant: true
+  inputs: []
+  name: modelRegistry
+  outputs:
+  - name: ''
+    type: address
+  payable: false
+  stateMutability: view
+  type: function
+- constant: true
+  inputs: []
+  name: nextJobId
+  outputs:
+  - name: ''
+    type: uint256
+  payable: false
+  stateMutability: view
+  type: function
+- constant: true
+  inputs: []
+  name: owner
+  outputs:
+  - name: ''
+    type: address
+  payable: false
+  stateMutability: view
+  type: function
+- constant: false
+  inputs:
+  - name: _modelRegistry
+    type: address
+  name: setModelRegistry
+  outputs: []
+  payable: false
+  type: function
+- constant: false
+  inputs:
+  - name: promptCID
+    type: string
+  - name: modelId
+    type: string
+  name: submitPrompt
+  outputs:
+  - name: ''
+    type: uint256
+  payable: true
+  stateMutability: payable
+  type: function
+- constant: false
+  inputs:
+  - name: promptCID
+    type: string
+  - name: modelCID
+    type: string
+  name: submitPromptWithCID
+  outputs:
+  - name: ''
+    type: uint256
+  payable: true
+  stateMutability: payable
+  type: function
+- constant: false
+  inputs:
+  - name: jobId
+    type: uint256
+  - name: responseCID
+    type: string
+  name: submitResponse
+  outputs: []
+  payable: false
+  type: function
+- constant: false
+  inputs:
+  - name: newOwner
+    type: address
+  name: transferOwnership
+  outputs: []
+  payable: false
+  type: function
+contract_address: '0x303778f1Cb5a2177e5Ef682329074d1FDCFc3F98'
+default_account: 647037605674533489919042951335467802551698986999
+enable_mcp: true
+enforce_eager: false
+eth_node: http://localhost:8545
+gpu_memory_utilization: 0.8
+head_min_ram: 8589934592
+head_min_vram: 8589934592
+ipfs_host: 127.0.0.1
+ipfs_port: 5001
+max_cpu: 90
+max_model_len: 2048
+max_tokens: 512
+mcp_max_iterations: 5
+min_free_ram: 2147483648
+min_free_vram: 4294967296
+model_name: default
+model_registry_address: '0xE74A3C7427CDA785e0000D42a705B1f3fD371E09'
+node_profile_registry_address: '0xBcDfc870Ea0C6463C6EBb2B2217a4b32B93BCFB7'
+private_key: 77814517325470205911140941194401928579557062014761831930645393041380819009408
+ray_port: 6379
+stop_tokens: null
+temperature: 0.7
+top_p: 0.9
+trust_remote_code: true
+vllm_base_url: http://localhost:8000/v1
+vllm_port: 8000

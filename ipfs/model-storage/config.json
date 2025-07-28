@@ -6,12 +6,11 @@
   },
   "blockchain": {
     "rpcUrl": "http://localhost:8545",
-    "privateKey": 0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6,
+    "privateKey": 77814517325470205911140941194401928579557062014761831930645393041380819009408,
     "contractAddress": null
   },
   "storage": {
     "chunkSize": 1048576,
     "tempDir": "./temp"
   }
-}
 }

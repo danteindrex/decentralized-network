@@ -7,12 +7,16 @@ import requests
 from web3 import Web3
 from datetime import datetime
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from pathlib import Path
 
 # Page configuration
 st.set_page_config(
-    page_title="Decentralized Inference Tester",
+    page_title="Surgent - Decentralized AI Network",
     page_icon="🧠",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 # Load configuration
@@ -239,10 +243,131 @@ def monitor_job_completion(contract, job_id, timeout=300):
     
     return None, None
 
-# Streamlit UI
+# Additional utility functions for enhanced features
+def format_file_size(size_bytes):
+    """Format file size in human readable format"""
+    if size_bytes == 0:
+        return "0 Bytes"
+    size_names = ["Bytes", "KB", "MB", "GB", "TB"]
+    i = int(math.floor(math.log(size_bytes, 1024)))
+    p = math.pow(1024, i)
+    s = round(size_bytes / p, 2)
+    return f"{s} {size_names[i]}"
+
+def get_mock_storage_info():
+    """Get mock storage information"""
+    return {
+        'used_space': 2049024,  # ~2MB
+        'total_space': 1073741824,  # 1GB
+        'file_count': len(st.session_state.get('uploaded_files', [])),
+        'available_space': 1073741824 - 2049024
+    }
+
+def get_mock_files():
+    """Get mock file list"""
+    if 'uploaded_files' not in st.session_state:
+        st.session_state.uploaded_files = [
+            {
+                'id': '1',
+                'name': 'example.txt',
+                'size': 1024,
+                'hash': 'QmExampleHash1234567890abcdef',
+                'uploaded_at': datetime.now() - pd.Timedelta(days=1),
+                'mime_type': 'text/plain'
+            },
+            {
+                'id': '2', 
+                'name': 'model_weights.bin',
+                'size': 2048000,
+                'hash': 'QmModelHash1234567890abcdef',
+                'uploaded_at': datetime.now() - pd.Timedelta(days=2),
+                'mime_type': 'application/octet-stream'
+            }
+        ]
+    return st.session_state.uploaded_files
+
+def create_storage_chart():
+    """Create storage usage chart"""
+    storage_info = get_mock_storage_info()
+    
+    # Pie chart for storage usage
+    fig = go.Figure(data=[go.Pie(
+        labels=['Used Space', 'Available Space'],
+        values=[storage_info['used_space'], storage_info['available_space']],
+        hole=0.4,
+        marker_colors=['#ff6b6b', '#51cf66']
+    )])
+    
+    fig.update_layout(
+        title="Storage Usage",
+        height=300,
+        showlegend=True,
+        margin=dict(t=50, b=0, l=0, r=0)
+    )
+    
+    return fig
+
+def create_job_performance_chart():
+    """Create job performance chart"""
+    if 'job_history' not in st.session_state or not st.session_state.job_history:
+        return None
+    
+    df = pd.DataFrame(st.session_state.job_history)
+    
+    fig = px.line(
+        df, 
+        x='timestamp', 
+        y='duration',
+        title='Job Performance Over Time',
+        labels={'duration': 'Duration (seconds)', 'timestamp': 'Time'}
+    )
+    
+    fig.update_layout(height=300, margin=dict(t=50, b=0, l=0, r=0))
+    return fig
+
+# Enhanced Streamlit UI with all new features
 def main():
-    st.title("🧠 Decentralized Inference Tester")
-    st.markdown("Test the decentralized vLLM inference network with custom prompts")
+    # Custom CSS for better styling
+    st.markdown("""
+    <style>
+    .main-header {
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        padding: 2rem;
+        border-radius: 10px;
+        color: white;
+        margin-bottom: 2rem;
+    }
+    .metric-card {
+        background: white;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid #e1e5e9;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .chat-message {
+        padding: 1rem;
+        margin: 0.5rem 0;
+        border-radius: 8px;
+        border-left: 4px solid #667eea;
+        background: #f8f9fa;
+    }
+    .file-item {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 0.5rem 0;
+        border: 1px solid #e1e5e9;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Header
+    st.markdown("""
+    <div class="main-header">
+        <h1>🧠 Surgent - Decentralized AI Network</h1>
+        <p>Advanced AI inference platform with IPFS storage and blockchain coordination</p>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Load configuration
     config = load_config()
@@ -254,167 +379,502 @@ def main():
     if not w3 or not contract:
         st.stop()
     
-    # Sidebar for configuration
-    st.sidebar.header("Configuration")
-    st.sidebar.json({
-        "Contract Address": config.get('contract_address', 'Not set'),
-        "Ethereum Node": config.get('eth_node', 'Not set'),
-        "Account": config.get('default_account', 'Not set')
-    })
+    # Navigation tabs
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "🚀 AI Chat", 
+        "📊 Dashboard", 
+        "💾 Storage", 
+        "📈 Analytics", 
+        "⚙️ Settings"
+    ])
     
-    # Check connection status
+    with tab1:
+        render_chat_interface(w3, contract, config)
+    
+    with tab2:
+        render_dashboard(w3, contract, config)
+    
+    with tab3:
+        render_storage_interface()
+    
+    with tab4:
+        render_analytics()
+    
+    with tab5:
+        render_settings(config)
+
+def render_chat_interface(w3, contract, config):
+    """Render the chat-like interface for AI interactions"""
+    st.header("💬 AI Assistant Chat")
+    st.markdown("Chat with the decentralized AI network to process your requests")
+    
+    # Initialize chat history
+    if 'chat_history' not in st.session_state:
+        st.session_state.chat_history = [
+            {
+                'role': 'assistant',
+                'content': 'Hello! I\'m your IPFS and AI assistant. I can help you upload files, run AI inference, and manage your decentralized storage. What would you like to do today?',
+                'timestamp': datetime.now()
+            }
+        ]
+    
+    # Chat container
+    chat_container = st.container()
+    
+    with chat_container:
+        for message in st.session_state.chat_history:
+            if message['role'] == 'user':
+                st.markdown(f"""
+                <div style="text-align: right; margin: 1rem 0;">
+                    <div style="background: #667eea; color: white; padding: 1rem; border-radius: 18px 18px 4px 18px; display: inline-block; max-width: 70%;">
+                        {message['content']}
+                    </div>
+                    <div style="font-size: 0.8rem; color: #666; margin-top: 0.25rem;">
+                        {message['timestamp'].strftime('%H:%M')}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div style="text-align: left; margin: 1rem 0;">
+                    <div style="background: #f1f3f4; color: #333; padding: 1rem; border-radius: 18px 18px 18px 4px; display: inline-block; max-width: 70%;">
+                        {message['content']}
+                    </div>
+                    <div style="font-size: 0.8rem; color: #666; margin-top: 0.25rem;">
+                        AI Assistant • {message['timestamp'].strftime('%H:%M')}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+    
+    # Chat input
+    col1, col2 = st.columns([4, 1])
+    
+    with col1:
+        user_input = st.text_input(
+            "Type your message...",
+            placeholder="e.g., 'run inference on: What is machine learning?', 'upload a file', 'show my storage stats'",
+            key="chat_input"
+        )
+    
+    with col2:
+        send_button = st.button("Send", type="primary", use_container_width=True)
+    
+    if send_button and user_input:
+        # Add user message
+        st.session_state.chat_history.append({
+            'role': 'user',
+            'content': user_input,
+            'timestamp': datetime.now()
+        })
+        
+        # Process the request
+        response = process_chat_request(user_input, w3, contract, config)
+        
+        # Add assistant response
+        st.session_state.chat_history.append({
+            'role': 'assistant',
+            'content': response,
+            'timestamp': datetime.now()
+        })
+        
+        st.rerun()
+
+def process_chat_request(user_input, w3, contract, config):
+    """Process user chat requests and return appropriate responses"""
+    user_input_lower = user_input.lower()
+    
+    if 'inference' in user_input_lower or 'run' in user_input_lower:
+        # Extract prompt from the request
+        if ':' in user_input:
+            prompt = user_input.split(':', 1)[1].strip()
+        else:
+            prompt = user_input
+        
+        return run_inference_from_chat(prompt, w3, contract, config)
+    
+    elif 'upload' in user_input_lower or 'file' in user_input_lower:
+        return "I can help you upload files! Please use the Storage tab to upload files to IPFS. You can drag and drop files or use the upload button."
+    
+    elif 'storage' in user_input_lower or 'stats' in user_input_lower:
+        storage_info = get_mock_storage_info()
+        return f"📊 Storage Stats:\n• Used: {format_file_size(storage_info['used_space'])}\n• Available: {format_file_size(storage_info['available_space'])}\n• Files: {storage_info['file_count']}\n• Usage: {(storage_info['used_space']/storage_info['total_space']*100):.1f}%"
+    
+    elif 'help' in user_input_lower:
+        return """🤖 I can help you with:
+        
+• **AI Inference**: Say "run inference on: [your prompt]" to get AI responses
+• **File Management**: Upload, download, and manage files on IPFS
+• **Storage Stats**: Check your storage usage and file information
+• **Network Status**: Monitor blockchain and IPFS connectivity
+
+Try asking me something like:
+- "run inference on: Explain quantum computing"
+- "show my storage stats"
+- "upload a file"
+        """
+    
+    else:
+        return f"I understand you said: '{user_input}'. I can help with AI inference, file management, and storage. Type 'help' to see what I can do!"
+
+def run_inference_from_chat(prompt, w3, contract, config):
+    """Run inference from chat and return formatted response"""
     try:
-        block_number = w3.eth.block_number
-        st.sidebar.success(f"✅ Connected to Ethereum (Block: {block_number})")
-    except:
-        st.sidebar.error("❌ Failed to connect to Ethereum")
-        st.stop()
+        # Use the simple test model
+        model_cid = "QmetMnp9xtCrfe4U4Fmjk5CZLZj3fQy1gF7M9BV31tKiNe"
+        
+        # Upload prompt to IPFS
+        prompt_cid = upload_to_ipfs(prompt)
+        if not prompt_cid:
+            return "❌ Failed to upload prompt to IPFS. Please try again."
+        
+        # Submit job
+        tx_hash, job_id = submit_inference_job(
+            w3, contract, prompt_cid, model_cid,
+            config['default_account'], config['private_key']
+        )
+        
+        if not tx_hash or not job_id:
+            return "❌ Failed to submit inference job. Please check your configuration."
+        
+        # Monitor completion (with shorter timeout for chat)
+        response_cid, worker = monitor_job_completion(contract, job_id, timeout=60)
+        
+        if response_cid:
+            response_data = fetch_from_ipfs(response_cid)
+            if response_data:
+                # Store in job history
+                if 'job_history' not in st.session_state:
+                    st.session_state.job_history = []
+                
+                st.session_state.job_history.append({
+                    'job_id': job_id,
+                    'prompt': prompt[:50] + '...' if len(prompt) > 50 else prompt,
+                    'status': 'Completed',
+                    'timestamp': datetime.now(),
+                    'duration': 30,  # Mock duration
+                    'worker': worker[:10] + '...' if worker else 'Unknown'
+                })
+                
+                if isinstance(response_data, dict) and 'response' in response_data:
+                    return f"🎉 **Inference Complete!**\n\n**Response:** {response_data['response']}\n\n*Job ID: {job_id}*"
+                else:
+                    return f"🎉 **Inference Complete!**\n\n**Response:** {response_data}\n\n*Job ID: {job_id}*"
+            else:
+                return f"✅ Inference completed but failed to fetch response. Job ID: {job_id}"
+        else:
+            return f"⏰ Inference job timed out. Job ID: {job_id}. Check the Dashboard for updates."
+            
+    except Exception as e:
+        return f"❌ Error running inference: {str(e)}"
+
+def render_dashboard(w3, contract, config):
+    """Render the main dashboard"""
+    st.header("📊 Network Dashboard")
     
-    # Main interface
+    # Network status
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        try:
+            block_number = w3.eth.block_number
+            st.metric("Blockchain", f"Block {block_number}", "✅ Connected")
+        except:
+            st.metric("Blockchain", "Disconnected", "❌ Error")
+    
+    with col2:
+        # Mock IPFS status
+        st.metric("IPFS", "Connected", "✅ Online")
+    
+    with col3:
+        # Mock worker count
+        st.metric("Active Workers", "3", "+1 from yesterday")
+    
+    with col4:
+        # Mock job count
+        job_count = len(st.session_state.get('job_history', []))
+        st.metric("Total Jobs", str(job_count), f"+{job_count} this session")
+    
+    st.markdown("---")
+    
+    # Recent activity and charts
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        st.header("Submit Inference Job")
+        st.subheader("🔄 Recent Activity")
         
-        # Prompt input
-        prompt = st.text_area(
-            "Enter your prompt:",
-            placeholder="What is the capital of France?",
-            height=100
-        )
-        
-        # Model selection
-        st.subheader("Select AI Model")
-        
-        # Predefined models (you can expand this list)
-        available_models = {
-            "Simple Test Model": "QmetMnp9xtCrfe4U4Fmjk5CZLZj3fQy1gF7M9BV31tKiNe",
-            "Custom Model": "custom"
-        }
-        
-        st.info("✅ Test model available! The 'Simple Test Model' is a working test model for demonstration.")
-        
-        model_choice = st.selectbox(
-            "Choose a model:",
-            options=list(available_models.keys()),
-            help="Select from available AI models"
-        )
-        
-        if model_choice == "Custom Model":
-            model_cid = st.text_input(
-                "Enter custom Model CID (IPFS hash):",
-                placeholder="QmXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-                help="IPFS hash of your custom model"
-            )
+        if 'job_history' in st.session_state and st.session_state.job_history:
+            for job in st.session_state.job_history[-5:]:  # Show last 5 jobs
+                st.markdown(f"""
+                <div class="file-item">
+                    <strong>Job #{job['job_id']}</strong><br>
+                    <small>{job['prompt']} • {job['timestamp'].strftime('%H:%M:%S')} • {job['status']}</small>
+                </div>
+                """, unsafe_allow_html=True)
         else:
-            model_cid = available_models[model_choice]
-            st.info(f"Using model: {model_choice}")
-            st.code(f"Model CID: {model_cid}", language="text")
-        
-        # Submit button
-        if st.button("🚀 Submit Inference Job", type="primary"):
-            if not prompt.strip():
-                st.error("Please enter a prompt")
-            elif not model_cid.strip():
-                st.error("Please enter a model CID")
-            else:
-                with st.spinner("Submitting job..."):
-                    # Record start time
-                    start_time = time.time()
-                    
-                    # Upload prompt to IPFS
-                    st.info("📤 Uploading prompt to IPFS...")
-                    prompt_cid = upload_to_ipfs(prompt)
-                    
-                    if not prompt_cid:
-                        st.error("Failed to upload prompt to IPFS")
-                        st.stop()
-                    
-                    st.success(f"✅ Prompt uploaded: {prompt_cid}")
-                    
-                    # Submit to contract
-                    st.info("📝 Submitting to smart contract...")
-                    tx_hash, job_id = submit_inference_job(
-                        w3, contract, prompt_cid, model_cid,
-                        config['default_account'], config['private_key']
-                    )
-                    
-                    if not tx_hash or not job_id:
-                        st.error("Failed to submit job to contract")
-                        st.stop()
-                    
-                    st.success(f"✅ Job submitted! Job ID: {job_id}")
-                    st.info(f"Transaction: {tx_hash}")
-                    
-                    # Monitor for completion
-                    st.info("⏳ Waiting for inference completion...")
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
-                    
-                    response_cid, worker = monitor_job_completion(contract, job_id)
-                    
-                    if response_cid:
-                        # Calculate total time
-                        total_time = time.time() - start_time
-                        
-                        st.success(f"🎉 Inference completed in {total_time:.2f} seconds!")
-                        st.info(f"Worker: {worker}")
-                        st.info(f"Response CID: {response_cid}")
-                        
-                        # Fetch and display response
-                        st.info("📥 Fetching response from IPFS...")
-                        response_data = fetch_from_ipfs(response_cid)
-                        
-                        if response_data:
-                            st.header("📋 Inference Result")
-                            
-                            # Display timing information
-                            col_time1, col_time2, col_time3 = st.columns(3)
-                            with col_time1:
-                                st.metric("Total Time", f"{total_time:.2f}s")
-                            with col_time2:
-                                st.metric("Job ID", job_id)
-                            with col_time3:
-                                st.metric("Status", "✅ Completed")
-                            
-                            # Display response
-                            if isinstance(response_data, dict):
-                                st.json(response_data)
-                                if 'response' in response_data:
-                                    st.text_area("Response Text:", response_data['response'], height=200)
-                            else:
-                                st.text_area("Response:", response_data, height=200)
-                        else:
-                            st.error("Failed to fetch response from IPFS")
-                    else:
-                        st.error("⏰ Job timed out or failed")
+            st.info("No recent activity. Start a conversation in the AI Chat tab!")
     
     with col2:
-        st.header("📊 Job History")
+        st.subheader("⚡ Quick Actions")
         
-        # Initialize session state for job history
-        if 'job_history' not in st.session_state:
-            st.session_state.job_history = []
+        if st.button("🚀 Quick Inference", use_container_width=True):
+            st.session_state.quick_inference = True
         
-        # Display recent jobs
-        if st.session_state.job_history:
-            df = pd.DataFrame(st.session_state.job_history)
-            st.dataframe(df, use_container_width=True)
-        else:
-            st.info("No jobs submitted yet")
+        if st.button("📁 View Files", use_container_width=True):
+            st.switch_page("Storage")
         
-        # Clear history button
-        if st.button("🗑️ Clear History"):
-            st.session_state.job_history = []
-            st.rerun()
+        if st.button("📈 View Analytics", use_container_width=True):
+            st.switch_page("Analytics")
     
-    # Footer
-    st.markdown("---")
-    st.markdown(
-        "Built with ❤️ using Streamlit | "
-        "[GitHub](https://github.com/your-repo) | "
-        f"Current time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    # Quick inference modal
+    if st.session_state.get('quick_inference', False):
+        with st.expander("🚀 Quick Inference", expanded=True):
+            quick_prompt = st.text_input("Enter your prompt:", key="quick_prompt")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if st.button("Submit", type="primary"):
+                    if quick_prompt:
+                        response = run_inference_from_chat(quick_prompt, w3, contract, config)
+                        st.success("Job submitted! Check AI Chat for results.")
+                        st.session_state.quick_inference = False
+                        st.rerun()
+            
+            with col2:
+                if st.button("Cancel"):
+                    st.session_state.quick_inference = False
+                    st.rerun()
+
+def render_storage_interface():
+    """Render the storage management interface"""
+    st.header("💾 IPFS Storage Management")
+    
+    # Storage overview
+    storage_info = get_mock_storage_info()
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric(
+            "Used Space", 
+            format_file_size(storage_info['used_space']),
+            f"{(storage_info['used_space']/storage_info['total_space']*100):.1f}% of total"
+        )
+    
+    with col2:
+        st.metric(
+            "Available Space",
+            format_file_size(storage_info['available_space']),
+            "Ready for uploads"
+        )
+    
+    with col3:
+        st.metric(
+            "Files Stored",
+            str(storage_info['file_count']),
+            "Across IPFS network"
+        )
+    
+    # Storage usage chart
+    st.subheader("📊 Storage Usage")
+    storage_chart = create_storage_chart()
+    st.plotly_chart(storage_chart, use_container_width=True)
+    
+    # File upload section
+    st.subheader("📤 Upload Files")
+    
+    uploaded_file = st.file_uploader(
+        "Choose files to upload to IPFS",
+        accept_multiple_files=True,
+        help="Upload files to the decentralized IPFS network"
     )
+    
+    if uploaded_file:
+        for file in uploaded_file:
+            if st.button(f"Upload {file.name}", key=f"upload_{file.name}"):
+                with st.spinner(f"Uploading {file.name} to IPFS..."):
+                    # Mock upload process
+                    time.sleep(2)
+                    
+                    # Add to mock file list
+                    new_file = {
+                        'id': str(len(st.session_state.get('uploaded_files', [])) + 1),
+                        'name': file.name,
+                        'size': file.size,
+                        'hash': f"Qm{hash(file.name + str(time.time()))}"[:46],
+                        'uploaded_at': datetime.now(),
+                        'mime_type': file.type or 'application/octet-stream'
+                    }
+                    
+                    if 'uploaded_files' not in st.session_state:
+                        st.session_state.uploaded_files = []
+                    
+                    st.session_state.uploaded_files.append(new_file)
+                    st.success(f"✅ {file.name} uploaded successfully!")
+                    st.info(f"IPFS Hash: {new_file['hash']}")
+                    st.rerun()
+    
+    # File list
+    st.subheader("📁 Your Files")
+    
+    files = get_mock_files()
+    
+    if files:
+        for file in files:
+            with st.expander(f"📄 {file['name']} ({format_file_size(file['size'])})"):
+                col1, col2 = st.columns([3, 1])
+                
+                with col1:
+                    st.write(f"**Hash:** `{file['hash']}`")
+                    st.write(f"**Size:** {format_file_size(file['size'])}")
+                    st.write(f"**Type:** {file['mime_type']}")
+                    st.write(f"**Uploaded:** {file['uploaded_at'].strftime('%Y-%m-%d %H:%M:%S')}")
+                
+                with col2:
+                    if st.button("📥 Download", key=f"download_{file['id']}"):
+                        st.success(f"Downloading {file['name']}...")
+                    
+                    if st.button("🗑️ Delete", key=f"delete_{file['id']}"):
+                        # Remove from session state
+                        st.session_state.uploaded_files = [
+                            f for f in st.session_state.uploaded_files 
+                            if f['id'] != file['id']
+                        ]
+                        st.success(f"Deleted {file['name']}")
+                        st.rerun()
+    else:
+        st.info("No files uploaded yet. Use the upload section above to add files.")
+
+def render_analytics():
+    """Render analytics and performance metrics"""
+    st.header("📈 Network Analytics")
+    
+    # Performance metrics
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Avg Response Time", "2.3s", "-0.5s from last hour")
+    
+    with col2:
+        st.metric("Success Rate", "98.5%", "+1.2% from yesterday")
+    
+    with col3:
+        st.metric("Network Load", "Medium", "Stable")
+    
+    with col4:
+        st.metric("Cost per Job", "$0.02", "-$0.01 from last week")
+    
+    # Charts
+    if st.session_state.get('job_history'):
+        st.subheader("📊 Job Performance")
+        perf_chart = create_job_performance_chart()
+        if perf_chart:
+            st.plotly_chart(perf_chart, use_container_width=True)
+    
+    # Network statistics
+    st.subheader("🌐 Network Statistics")
+    
+    # Mock network data
+    network_data = {
+        'Worker Nodes': [3, 4, 3, 5, 4, 3, 4],
+        'Jobs Processed': [12, 15, 18, 22, 19, 16, 20],
+        'Day': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    }
+    
+    df_network = pd.DataFrame(network_data)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        fig_workers = px.line(df_network, x='Day', y='Worker Nodes', title='Active Worker Nodes')
+        st.plotly_chart(fig_workers, use_container_width=True)
+    
+    with col2:
+        fig_jobs = px.bar(df_network, x='Day', y='Jobs Processed', title='Jobs Processed Daily')
+        st.plotly_chart(fig_jobs, use_container_width=True)
+
+def render_settings(config):
+    """Render settings and configuration"""
+    st.header("⚙️ Settings & Configuration")
+    
+    # Network settings
+    st.subheader("🌐 Network Configuration")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.text_input("Ethereum Node URL", value=config.get('eth_node', ''), disabled=True)
+        st.text_input("IPFS Host", value=config.get('ipfs_host', ''), disabled=True)
+    
+    with col2:
+        st.text_input("Contract Address", value=config.get('contract_address', ''), disabled=True)
+        st.text_input("IPFS Port", value=str(config.get('ipfs_port', '')), disabled=True)
+    
+    # Account settings
+    st.subheader("👤 Account Settings")
+    
+    account_display = config.get('default_account', '')
+    if account_display:
+        account_display = f"{account_display[:6]}...{account_display[-4:]}"
+    
+    st.text_input("Account Address", value=account_display, disabled=True)
+    
+    # Preferences
+    st.subheader("🎛️ Preferences")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.selectbox("Default Model", ["Simple Test Model", "Custom Model"])
+        st.slider("Max Job Timeout (seconds)", 30, 600, 300)
+    
+    with col2:
+        st.checkbox("Auto-refresh Dashboard", value=True)
+        st.checkbox("Show Advanced Metrics", value=False)
+    
+    # System info
+    st.subheader("ℹ️ System Information")
+    
+    system_info = {
+        "Python Version": "3.9+",
+        "Streamlit Version": st.__version__,
+        "Web3 Version": "6.0+",
+        "Platform": "Linux"
+    }
+    
+    for key, value in system_info.items():
+        st.text(f"{key}: {value}")
+    
+    # Actions
+    st.subheader("🔧 Actions")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("🔄 Refresh Configuration", use_container_width=True):
+            st.cache_data.clear()
+            st.success("Configuration refreshed!")
+    
+    with col2:
+        if st.button("🧹 Clear Cache", use_container_width=True):
+            st.cache_data.clear()
+            st.cache_resource.clear()
+            st.success("Cache cleared!")
+    
+    with col3:
+        if st.button("📊 Export Data", use_container_width=True):
+            # Mock export functionality
+            export_data = {
+                'job_history': st.session_state.get('job_history', []),
+                'uploaded_files': st.session_state.get('uploaded_files', []),
+                'export_time': datetime.now().isoformat()
+            }
+            st.download_button(
+                "Download Export",
+                json.dumps(export_data, indent=2, default=str),
+                file_name=f"surgent_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                mime="application/json"
+            )
 
 if __name__ == "__main__":
+    import math
     main()

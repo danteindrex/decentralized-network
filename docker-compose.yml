@@ -46,23 +46,6 @@ services:
       timeout: 10s
       retries: 5
 
-  # Contract deployment service
-  deployer:
-    build:
-      context: .
-      dockerfile: Dockerfile.deployer
-    depends_on:
-      geth:
-        condition: service_healthy
-    environment:
-      - ETH_NODE_URL=http://geth:8545
-      - PRIVATE_KEY=${OWNER_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
-      - DEFAULT_ACCOUNT=${OWNER_ACCOUNT:-0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266}
-    volumes:
-      - ./deployment.json:/app/deployment.json
-      - ./orchestrator/abis:/app/orchestrator/abis
-    command: ["npm", "run", "deploy:docker"]
-
   # Bootstrap Node (Network founder/coordinator)
   bootstrap-node:
     build:
@@ -73,8 +56,6 @@ services:
         condition: service_healthy
       geth:
         condition: service_healthy
-      deployer:
-        condition: service_completed_successfully
     environment:
       - NODE_TYPE=bootstrap
       - ETH_NODE_URL=http://geth:8545
@@ -87,10 +68,11 @@ services:
     volumes:
       - ./deployment.json:/app/deployment.json:ro
       - ./orchestrator/abis:/app/orchestrator/abis:ro
+      - ./genesis.json:/app/genesis.json:ro
       - bootstrap_data:/app/data
     ports:
-      - "30303:30303"  # P2P bootstrap port
-      - "8080:8080"    # Mobile PWA server
+      - "30304:30303"  # P2P bootstrap port
+      - "8082:8080"    # Mobile PWA server
     restart: unless-stopped
     profiles: ["bootstrap", "full"]
 
@@ -104,8 +86,6 @@ services:
         condition: service_healthy
       geth:
         condition: service_healthy
-      deployer:
-        condition: service_completed_successfully
     environment:
       - NODE_TYPE=worker
       - ETH_NODE_URL=http://geth:8545
@@ -122,10 +102,11 @@ services:
     volumes:
       - ./deployment.json:/app/deployment.json:ro
       - ./orchestrator/abis:/app/orchestrator/abis:ro
+      - ./scripts:/app/scripts:ro
       - worker_model_cache:/app/model_cache
       - worker_data:/app/data
     ports:
-      - "8000:8000"   # vLLM inference port
+      - "8003:8000"   # vLLM inference port
     restart: unless-stopped
     profiles: ["worker", "full"]
     deploy:
@@ -141,8 +122,6 @@ services:
         condition: service_healthy
       geth:
         condition: service_healthy
-      deployer:
-        condition: service_completed_successfully
     environment:
       - NODE_TYPE=owner
       - ETH_NODE_URL=http://geth:8545
@@ -178,26 +157,6 @@ services:
     restart: unless-stopped
     profiles: ["mobile", "full"]
 
-  # Streamlit Web Interface (For all users)
-  streamlit:
-    build:
-      context: .
-      dockerfile: Dockerfile.streamlit
-    depends_on:
-      worker-node:
-        condition: service_started
-    environment:
-      - ETH_NODE_URL=http://geth:8545
-      - PRIVATE_KEY=${USER_PRIVATE_KEY:-0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a}
-      - DEFAULT_ACCOUNT=${USER_ACCOUNT:-0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC}
-      - NODE_TYPE=user
-    volumes:
-      - ./deployment.json:/app/deployment.json:ro
-      - ./orchestrator:/app/orchestrator:ro
-    ports:
-      - "8501:8501"   # Streamlit web interface
-    restart: unless-stopped
-    profiles: ["user", "full"]
 
 volumes:
   ipfs_data:
