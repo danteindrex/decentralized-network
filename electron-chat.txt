@@ -200,4 +200,4 @@ can i have one app to be able to create any type of node even worker nodes on mo
 so that we have only 3 apps mobile , mac and windows and an ubuntu
 so every node can be any node
 Excellent idea! A unified app that can become any node type is much more user-friendly. Let me create a single multi-platform application that lets users choose their node type on first launch.
-how can i serve this network …  stopped
+how can i serve this network … 
