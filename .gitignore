@@ -19,6 +19,7 @@ __pycache__/
 *.so
 .Python
 build/
+models/
 develop-eggs/
 dist/
 downloads/
@@ -30,6 +31,7 @@ parts/
 venv/
 sdist/
 var/
+temp/
 wheels/
 *.egg-info/
 .installed.cfg

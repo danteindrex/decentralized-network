@@ -5,6 +5,8 @@ import { Send, BarChart3 } from "lucide-react"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 import { ChatMessage } from "./ChatMessage"
+import { AIService } from "../services/aiService"
+import { ConfigService } from "../services/configService"
 import { mcpService } from "../services/mcpService"
 
 interface Message {
@@ -13,6 +15,9 @@ interface Message {
   sender: "user" | "assistant"
   timestamp: Date
   isLoading?: boolean
+  jobId?: number
+  txHash?: string
+  serviceType?: 'ai' | 'mcp' | 'storage'
 }
 
 interface ChatWindowProps {
@@ -24,14 +29,30 @@ export function ChatWindow({ onShowStorage }: ChatWindowProps) {
     {
       id: "welcome",
       content:
-        "Hello! I'm your IPFS assistant. I can help you upload files, download files, and process payments. What would you like to do today?",
+        "Hello! I'm your AI-powered assistant for the decentralized network. I can help you with:\n\n• 🧠 AI inference requests\n• 📁 IPFS file management\n• 💰 Payment processing\n• 📊 Network status monitoring\n• 🔧 MCP tool integrations\n\nWhat would you like to do today?",
       sender: "assistant",
       timestamp: new Date(),
     },
   ])
   const [inputValue, setInputValue] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [aiService, setAiService] = useState<AIService | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    initializeAIService()
+  }, [])
+
+  const initializeAIService = async () => {
+    try {
+      const configService = ConfigService.getInstance()
+      const config = await configService.loadConfig()
+      const service = new AIService(config)
+      setAiService(service)
+    } catch (error) {
+      console.error('Failed to initialize AI service:', error)
+    }
+  }
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -104,17 +125,22 @@ export function ChatWindow({ onShowStorage }: ChatWindowProps) {
 
   return (
     <div
+      className="glass neon-border card-3d animate-slide-up"
       style={{
         width: "100%",
         maxWidth: "800px",
         height: "600px",
-        backgroundColor: "white",
-        border: "1px solid #e5e7eb",
-        borderRadius: "12px",
-        boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
         display: "flex",
         flexDirection: "column",
         position: "relative",
+        background: "var(--glass-bg)",
+        backdropFilter: "blur(20px)",
+        border: "1px solid var(--border-glow)",
+        borderRadius: "16px",
+        boxShadow: 
+          "0 20px 40px rgba(0, 0, 0, 0.3), " +
+          "0 0 20px var(--primary-neon), " +
+          "inset 0 1px 0 rgba(255, 255, 255, 0.1)",
       }}
     >
       {/* Chat Header */}

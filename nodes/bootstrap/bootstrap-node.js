@@ -1,16 +1,19 @@
 #!/usr/bin/env node
 
 /**
- * Bootstrap/Rendez-vous Node
- * - Exactly 1 (or 2 for redundancy)
+ * Bootstrap/Rendez-vous Node with Peer Discovery
+ * - Network coordinator and peer discovery hub
  * - Must have static IP + port 30303 open
- * - Runs a pruned full node (no mining)
- * - Job: give every new device a first peer
+ * - Runs full node with mining
+ * - Job: coordinate network growth and peer management
  */
 
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const express = require('express');
+const cors = require('cors');
+const NetworkDiscovery = require('../../services/networkDiscovery');
 
 class BootstrapNode {
     constructor(config = {}) {
@@ -28,6 +31,10 @@ class BootstrapNode {
         
         this.nodeKey = this.generateNodeKey();
         this.enode = this.generateEnode();
+        this.networkDiscovery = null;
+        this.apiServer = null;
+        this.peers = new Map();
+        this.jobQueue = [];
     }
 
     generateNodeKey() {
@@ -124,6 +131,10 @@ class BootstrapNode {
 
         // Save enode info for other nodes
         this.saveBootstrapInfo();
+        
+        // Start peer discovery and API server
+        await this.startPeerDiscovery();
+        await this.startAPIServer();
     }
 
     async initGenesis() {
@@ -163,6 +174,161 @@ class BootstrapNode {
         const infoPath = path.join(__dirname, '../bootstrap-info.json');
         fs.writeFileSync(infoPath, JSON.stringify(info, null, 2));
         console.log(`📝 Bootstrap info saved to ${infoPath}`);
+    }
+
+    async startPeerDiscovery() {
+        console.log('🔍 Starting peer discovery service...');
+        
+        const discoveryConfig = {
+            nodeType: 'bootstrap',
+            ethNodeUrl: `http://localhost:${this.config.rpcPort}`,
+            endpoint: `${this.config.staticIP}:8080`,
+            version: '1.0.0'
+        };
+
+        this.networkDiscovery = new NetworkDiscovery(discoveryConfig);
+        
+        // Listen for peer events
+        this.networkDiscovery.on('peerDiscovered', (peer) => {
+            console.log(`🤝 New peer discovered: ${peer.type} at ${peer.endpoint}`);
+            this.peers.set(peer.id || peer.endpoint, peer);
+        });
+
+        this.networkDiscovery.on('peerRemoved', (peer) => {
+            console.log(`👋 Peer removed: ${peer.endpoint}`);
+            this.peers.delete(peer.id || peer.endpoint);
+        });
+
+        await this.networkDiscovery.start();
+        console.log('✅ Peer discovery service started');
+    }
+
+    async startAPIServer() {
+        console.log('🌐 Starting bootstrap API server...');
+        
+        const app = express();
+        app.use(cors());
+        app.use(express.json());
+
+        // Network info endpoint
+        app.get('/network/info', (req, res) => {
+            res.json({
+                enode: this.enode,
+                staticIP: this.config.staticIP,
+                chainId: this.config.chainId,
+                networkId: this.config.networkId,
+                rpcEndpoint: `http://${this.config.staticIP}:${this.config.rpcPort}`,
+                wsEndpoint: `ws://${this.config.staticIP}:${this.config.wsPort}`,
+                peerCount: this.peers.size,
+                uptime: process.uptime()
+            });
+        });
+
+        // Get all peers
+        app.get('/peers', (req, res) => {
+            const { type } = req.query;
+            let peers = Array.from(this.peers.values());
+            
+            if (type) {
+                peers = peers.filter(p => p.type === type);
+            }
+            
+            res.json({
+                peers,
+                count: peers.length,
+                totalPeers: this.peers.size
+            });
+        });
+
+        // Get healthy workers for job routing
+        app.get('/workers', (req, res) => {
+            const healthyWorkers = this.networkDiscovery ? 
+                this.networkDiscovery.getHealthyWorkers() : [];
+            
+            res.json({
+                workers: healthyWorkers,
+                count: healthyWorkers.length
+            });
+        });
+
+        // Register new peer
+        app.post('/peers/register', (req, res) => {
+            const { nodeId, nodeType, endpoint, capabilities } = req.body;
+            
+            if (!nodeId || !nodeType || !endpoint) {
+                return res.status(400).json({ error: 'Missing required fields' });
+            }
+
+            const peerInfo = {
+                id: nodeId,
+                type: nodeType,
+                endpoint,
+                capabilities,
+                registeredAt: Date.now(),
+                status: 'registered'
+            };
+
+            this.peers.set(nodeId, peerInfo);
+            console.log(`📝 New peer registered: ${nodeType} at ${endpoint}`);
+            
+            res.json({ 
+                success: true, 
+                message: 'Peer registered successfully',
+                peerInfo 
+            });
+        });
+
+        // Worker heartbeat endpoint
+        app.post('/heartbeat', (req, res) => {
+            const { nodeId, status } = req.body;
+            
+            if (this.peers.has(nodeId)) {
+                const peer = this.peers.get(nodeId);
+                peer.lastHeartbeat = Date.now();
+                peer.status = status || 'active';
+                peer.performance = req.body.performance;
+                
+                res.json({ success: true, message: 'Heartbeat received' });
+            } else {
+                res.status(404).json({ error: 'Peer not found' });
+            }
+        });
+
+        // Job routing - select best worker for job
+        app.post('/jobs/route', (req, res) => {
+            const { jobRequirements } = req.body;
+            
+            try {
+                const worker = this.networkDiscovery ? 
+                    this.networkDiscovery.selectWorkerForJob(jobRequirements) : null;
+                
+                if (worker) {
+                    res.json({ worker, success: true });
+                } else {
+                    res.status(503).json({ error: 'No available workers' });
+                }
+            } catch (error) {
+                res.status(503).json({ error: error.message });
+            }
+        });
+
+        // Health check
+        app.get('/health', (req, res) => {
+            res.json({ 
+                status: 'healthy',
+                nodeType: 'bootstrap',
+                uptime: process.uptime(),
+                peers: this.peers.size,
+                timestamp: Date.now()
+            });
+        });
+
+        // Start server
+        const PORT = 8080;
+        this.apiServer = app.listen(PORT, '0.0.0.0', () => {
+            console.log(`✅ Bootstrap API server running on port ${PORT}`);
+            console.log(`📡 Network endpoint: http://${this.config.staticIP}:${PORT}`);
+        });
     }
 }
 

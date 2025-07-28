@@ -14,7 +14,28 @@ A truly decentralized AI inference network that enables distributed LLM computat
 
 ## 🚀 Quick Start
 
-### One-Command Setup (Recommended)
+### 🎯 Interactive Node Setup (Recommended)
+
+The easiest way to get started is using our interactive setup script:
+
+```bash
+# Make the setup script executable
+chmod +x setup-node.sh
+
+# Run the interactive setup
+./setup-node.sh
+```
+
+This will present you with a menu to set up different types of nodes individually:
+
+1. **🌟 Bootstrap Node** - Network coordinator and founder
+2. **💪 Worker Node** - AI compute provider (earn tokens)
+3. **🧠 Model Owner Node** - Upload and manage AI models
+4. **👤 User Interface** - Submit inference requests
+5. **🔧 Infrastructure** - Blockchain + IPFS only
+6. **📊 Full Network** - All nodes together (testing)
+
+### Legacy Setup (Advanced Users)
 
 ```bash
 git clone https://github.com/danteindrex/decentralized-network
@@ -73,6 +94,251 @@ Just visit any bootstrap node's mobile app:
 http://bootstrap-ip:8080/mobile
 ```
 Add to home screen when prompted. No installation required!
+
+## 🖥️ Accessing the User Interface for Inference Requests
+
+### 🎯 Quick Access Methods
+
+#### Method 1: Interactive Setup (Recommended)
+```bash
+./setup-node.sh
+# Choose option 4: User Interface
+# Follow the prompts to configure
+# Access at: http://localhost:8501
+```
+
+#### Method 2: Direct Streamlit Launch
+```bash
+# Ensure you have a running network (bootstrap + worker nodes)
+streamlit run streamlit_app.py --server.port 8501
+# Access at: http://localhost:8501
+```
+
+#### Method 3: Mobile PWA (No Installation)
+```bash
+# Visit any bootstrap node's mobile interface
+http://bootstrap-ip:8080/mobile
+# Add to home screen when prompted
+```
+
+### 🌐 Web Interface Features
+
+**Main Dashboard** (`http://localhost:8501`)
+- **🔐 Wallet Connection**: Connect your Ethereum wallet
+- **🧠 Model Selection**: Choose from available AI models
+- **💬 Prompt Input**: Enter your inference request
+- **⚙️ Parameters**: Adjust temperature, max tokens, etc.
+- **📊 Real-time Results**: View inference results as they arrive
+- **📜 Request History**: Track your previous requests
+- **💰 Balance & Costs**: Monitor your ETH balance and spending
+
+### 📱 Step-by-Step Usage Guide
+
+#### 1. **Setup User Interface**
+```bash
+# Option A: Use setup script
+./setup-node.sh
+# Choose option 4 (User Interface)
+# Enter bootstrap node IP when prompted
+
+# Option B: Manual setup
+cp .env.user .env
+streamlit run streamlit_app.py
+```
+
+#### 2. **Access the Interface**
+- **Open browser**: Navigate to `http://localhost:8501`
+- **Mobile users**: Visit `http://bootstrap-ip:8080/mobile`
+
+#### 3. **Connect Your Wallet**
+- Click **"Connect Wallet"** button
+- Enter your **private key** (keep it secure!)
+- Or use **MetaMask** integration if available
+- Verify your **ETH balance** is sufficient
+
+#### 4. **Submit Inference Requests**
+
+**Basic Request:**
+1. **Select Model**: Choose from dropdown (e.g., "gpt-3.5-turbo", "DialoGPT-small")
+2. **Enter Prompt**: Type your question or request
+   ```
+   Example: "Explain quantum computing in simple terms"
+   ```
+3. **Set Parameters** (optional):
+   - **Temperature**: 0.1-1.0 (creativity level)
+   - **Max Tokens**: 50-2000 (response length)
+   - **Top P**: 0.1-1.0 (response diversity)
+4. **Click "Submit Inference Request"**
+5. **Wait for Processing**: Worker nodes will process your request
+6. **View Results**: Response appears in real-time
+
+**Advanced Request:**
+```python
+# For developers using the API directly
+import requests
+
+response = requests.post('http://localhost:8501/api/inference', json={
+    'prompt': 'What is the meaning of life?',
+    'model_id': 'gpt-3.5-turbo',
+    'temperature': 0.7,
+    'max_tokens': 150
+})
+```
+
+#### 5. **Monitor Your Requests**
+- **Active Jobs**: See currently processing requests
+- **History**: View completed requests and responses
+- **Costs**: Track ETH spent on inference
+- **Performance**: See response times and quality
+
+### 🔧 Configuration Options
+
+#### Environment Setup
+```bash
+# User configuration (.env.user)
+NODE_TYPE=user
+ETH_NODE_URL=http://bootstrap-ip:8545
+IPFS_HOST=bootstrap-ip
+IPFS_PORT=5001
+
+# Your wallet (needs ETH for payments)
+USER_PRIVATE_KEY=0x...your-private-key
+USER_ACCOUNT=0x...your-wallet-address
+```
+
+#### Streamlit Configuration
+```bash
+# Custom port and settings
+streamlit run streamlit_app.py \
+  --server.port 8501 \
+  --server.address 0.0.0.0 \
+  --server.headless true
+```
+
+### 💰 Payment & Costs
+
+#### Typical Costs
+- **Basic Inference**: ~0.01 ETH per request
+- **Complex Requests**: 0.01-0.05 ETH depending on:
+  - Model complexity
+  - Response length
+  - Processing time
+  - Network demand
+
+#### Payment Process
+1. **Automatic Deduction**: ETH deducted when submitting request
+2. **Smart Contract**: Handles payment to worker nodes
+3. **Instant Processing**: No waiting for payment confirmation
+4. **Refunds**: Automatic refund if request fails
+
+### 🎮 Usage Examples
+
+#### Example 1: Creative Writing
+```
+Prompt: "Write a short story about a robot learning to paint"
+Model: gpt-3.5-turbo
+Temperature: 0.8 (high creativity)
+Max Tokens: 500
+```
+
+#### Example 2: Technical Explanation
+```
+Prompt: "Explain how blockchain consensus mechanisms work"
+Model: gpt-4 (if available)
+Temperature: 0.3 (factual)
+Max Tokens: 300
+```
+
+#### Example 3: Code Generation
+```
+Prompt: "Write a Python function to calculate fibonacci numbers"
+Model: code-davinci-002
+Temperature: 0.1 (precise)
+Max Tokens: 200
+```
+
+### 🔍 Troubleshooting User Interface
+
+#### Common Issues
+
+**"Cannot connect to network"**
+```bash
+# Check if bootstrap node is running
+curl http://bootstrap-ip:8545
+
+# Verify your .env.user configuration
+cat .env.user
+```
+
+**"Insufficient funds"**
+```bash
+# Check your ETH balance
+# Get test ETH from faucet for development
+# Ensure you have at least 0.1 ETH for multiple requests
+```
+
+**"Model not available"**
+```bash
+# Check available models
+curl http://bootstrap-ip:8545 -X POST \
+  -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0","method":"eth_call","params":[{"to":"contract-address","data":"0x..."}],"id":1}'
+```
+
+**"Request timeout"**
+```bash
+# Check worker node status
+# Ensure at least one worker node is running
+# Try with a simpler prompt first
+```
+
+#### Performance Tips
+- **Start Simple**: Begin with short prompts to test connectivity
+- **Monitor Costs**: Keep track of ETH spending
+- **Use Appropriate Models**: Choose model complexity based on your needs
+- **Batch Requests**: Submit multiple requests efficiently
+
+### 📊 Advanced Features
+
+#### API Integration
+```python
+# Python SDK example
+from ai_network_sdk import InferenceClient
+
+client = InferenceClient(
+    bootstrap_url="http://bootstrap-ip:8545",
+    private_key="your-private-key"
+)
+
+result = client.submit_inference(
+    prompt="Your question here",
+    model_id="gpt-3.5-turbo",
+    temperature=0.7
+)
+```
+
+#### Batch Processing
+```bash
+# Submit multiple requests
+curl -X POST http://localhost:8501/api/batch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "requests": [
+      {"prompt": "Question 1", "model": "gpt-3.5-turbo"},
+      {"prompt": "Question 2", "model": "gpt-3.5-turbo"}
+    ]
+  }'
+```
+
+#### WebSocket Real-time Updates
+```javascript
+// JavaScript WebSocket connection
+const ws = new WebSocket('ws://localhost:8501/ws');
+ws.onmessage = function(event) {
+    const update = JSON.parse(event.data);
+    console.log('Inference update:', update);
+};
+```
 
 ## 📁 Project Structure
 

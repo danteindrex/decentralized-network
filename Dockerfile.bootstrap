@@ -3,8 +3,13 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apk add --no-cache python3 py3-pip bash curl
+# Install system dependencies and geth
+RUN apk add --no-cache python3 py3-pip bash curl wget \
+    && wget -O /tmp/geth.tar.gz https://gethstore.blob.core.windows.net/builds/geth-linux-amd64-1.13.5-916d6a44.tar.gz \
+    && tar -xzf /tmp/geth.tar.gz -C /tmp \
+    && mv /tmp/geth-linux-amd64-1.13.5-916d6a44/geth /usr/local/bin/ \
+    && chmod +x /usr/local/bin/geth \
+    && rm -rf /tmp/geth*
 
 # Copy Node.js dependencies
 COPY package*.json ./
