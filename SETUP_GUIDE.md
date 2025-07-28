@@ -19,7 +19,7 @@ This comprehensive guide covers all setup scenarios from development to producti
 ```bash
 git clone <your-repo>
 cd decentralized-vllm-inference
-./setup.sh
+./setup-secure.sh
 ```
 
 This automated script will:

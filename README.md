@@ -38,7 +38,7 @@ This will present you with a menu to set up different types of nodes individuall
 ### Legacy Setup (Advanced Users)
 
 ```bash
-git clone <your-repo>
+git clone https://github.com/danteindrex/decentralized-network
 cd decentralized-vllm-inference
 ./setup.sh
 ```

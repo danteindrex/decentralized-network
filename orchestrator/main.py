@@ -7,31 +7,32 @@ import requests
 import json
 import asyncio
 import sys
-import logging
 from web3 import Web3
 from threading import Thread
 # import ipfshttpclient  # Removed due to version compatibility
 from vllm import LLM, SamplingParams
 import ray
+from model_cache import get_cached_model, cache_model, get_cache_stats
 
-# Configure comprehensive logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('worker_node.log')
-    ]
+# Import structured logging
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'scripts'))
+from structured_logger import (
+    create_logger, with_circuit_breaker, with_retry,
+    blockchain_logger, ipfs_logger, inference_logger
 )
-logger = logging.getLogger(__name__)
+
+# Create logger for main orchestrator
+logger = create_logger("orchestrator", 
+                      level=os.getenv('LOG_LEVEL', 'INFO'),
+                      log_file='orchestrator.log')
 
 # Import MCP client
 try:
     from mcp_client import MCPEnhancedInference
     MCP_AVAILABLE = True
-    print("✅ MCP client loaded successfully")
+    logger.info("MCP client loaded successfully")
 except ImportError as e:
-    print(f"❌ MCP client not available: {e}")
+    logger.warning("MCP client not available", error=str(e))
     MCP_AVAILABLE = False
     MCPEnhancedInference = None
 
@@ -39,9 +40,9 @@ except ImportError as e:
 try:
     from model_storage_integration import BlockchainModelStorage, setup_model_storage
     BLOCKCHAIN_STORAGE_AVAILABLE = True
-    print("✅ Blockchain model storage loaded successfully")
+    logger.info("Blockchain model storage loaded successfully")
 except ImportError as e:
-    print(f"❌ Blockchain model storage not available: {e}")
+    logger.warning("Blockchain model storage not available", error=str(e))
     BLOCKCHAIN_STORAGE_AVAILABLE = False
     BlockchainModelStorage = None
     setup_model_storage = None
@@ -53,9 +54,16 @@ def load_config_with_fallbacks():
     """Load configuration with environment variable fallbacks"""
     import yaml
     
-    # Load base config
-    with open(CONFIG_PATH) as f:
-        cfg = yaml.safe_load(f)
+    try:
+        # Load base config
+        with open(CONFIG_PATH) as f:
+            cfg = yaml.safe_load(f)
+    except FileNotFoundError:
+        logger.error("Configuration file not found", config_path=CONFIG_PATH)
+        sys.exit(1)
+    except yaml.YAMLError as e:
+        logger.error("Invalid YAML configuration", error=e)
+        sys.exit(1)
     
     # Environment variable fallbacks
     cfg['eth_node'] = os.getenv('ETH_NODE_URL', cfg.get('eth_node', 'http://localhost:8545'))
@@ -64,28 +72,53 @@ def load_config_with_fallbacks():
     cfg['default_account'] = os.getenv('DEFAULT_ACCOUNT', cfg.get('default_account'))
     cfg['private_key'] = os.getenv('PRIVATE_KEY', cfg.get('private_key'))
     
+    # Try to load from secure key files
+    if not cfg.get('private_key') or str(cfg.get('private_key')).startswith(('0xYour', 'REPLACE_WITH')):
+        try:
+            from key_utils import KeyUtils
+            key_utils = KeyUtils()
+            key_info = key_utils.loadAccount('orchestrator')
+            cfg['private_key'] = key_info['privateKey']
+            cfg['default_account'] = key_info['address']
+            logger.info("Loaded credentials from secure key files")
+        except Exception as e:
+            logger.warning("Could not load secure keys", error=str(e))
+    
     # Validation
     required_fields = ['contract_address', 'default_account', 'private_key']
     for field in required_fields:
         if not cfg.get(field) or str(cfg[field]).startswith(('0xYour', 'REPLACE_WITH')):
-            print(f"❌ Missing or invalid {field}")
-            print(f"💡 Set environment variable: export {field.upper()}=your_value")
+            logger.error("Missing or invalid configuration field", field=field)
+            logger.info("Consider running 'node scripts/setup_secure_keys.js setup'")
             sys.exit(1)
     
     return cfg
 
-logger.info("🚀 Starting MCP-Enhanced Worker Node...")
-logger.info("📋 Loading configuration...")
+logger.info("Starting MCP-Enhanced Worker Node")
+logger.info("Loading configuration")
 cfg = load_config_with_fallbacks()
-logger.info(f"✅ Configuration loaded successfully")
-logger.info(f"🔗 Connecting to Ethereum node: {cfg['eth_node']}")
+logger.info("Configuration loaded successfully")
+logger.info("Connecting to Ethereum node", eth_node=cfg['eth_node'])
 
-w3 = Web3(Web3.HTTPProvider(cfg['eth_node']))
-logger.info(f"🌐 Web3 connection status: {w3.is_connected()}")
+try:
+    w3 = Web3(Web3.HTTPProvider(cfg['eth_node']))
+    is_connected = w3.is_connected()
+    blockchain_logger.blockchain_interaction("connect", is_connected, eth_node=cfg['eth_node'])
+    
+    if not is_connected:
+        logger.error("Failed to connect to Ethereum node")
+        sys.exit(1)
+except Exception as e:
+    logger.error("Ethereum connection failed", error=e)
+    sys.exit(1)
 
-logger.info(f"📄 Loading contract at address: {cfg['contract_address']}")
-contract = w3.eth.contract(address=cfg['contract_address'], abi=cfg['contract_abi'])
-logger.info("✅ Smart contract loaded successfully")
+try:
+    logger.info("Loading smart contract", contract_address=cfg['contract_address'])
+    contract = w3.eth.contract(address=cfg['contract_address'], abi=cfg['contract_abi'])
+    logger.info("Smart contract loaded successfully")
+except Exception as e:
+    logger.error("Failed to load smart contract", error=e, contract_address=cfg['contract_address'])
+    sys.exit(1)
 
 MIN_RAM = cfg['min_free_ram']
 MIN_VRAM = cfg['min_free_vram']
@@ -106,50 +139,17 @@ def start_ray_head():
 def join_ray(address):
     subprocess.run(['ray', 'start', '--address', f'127.0.0.1:{RAY_PORT}'])
 
-# IPFS HTTP client functions (compatible with IPFS 0.36.0)
-def upload_to_ipfs_http(content, is_json=False):
-    """Upload content to IPFS using HTTP API"""
+# IPFS client with circuit breaker
+@with_circuit_breaker(failure_threshold=3, recovery_timeout=30)
+def get_ipfs_client():
     try:
-        ipfs_host = cfg.get('ipfs_host', '127.0.0.1')
-        ipfs_port = cfg.get('ipfs_port', 5001)
-        ipfs_url = f"http://{ipfs_host}:{ipfs_port}/api/v0/add"
-        
-        if is_json:
-            content = json.dumps(content)
-        
-        files = {'file': ('content', content)}
-        response = requests.post(ipfs_url, files=files, timeout=30)
-        
-        if response.status_code == 200:
-            result = response.json()
-            return result['Hash']
-        else:
-            print(f"IPFS upload failed: {response.status_code} - {response.text}")
-            return None
-            
+        client = ipfshttpclient.connect('/ip4/127.0.0.1/tcp/5001')
+        # Test connection
+        client.version()
+        return client
     except Exception as e:
-        print(f"Failed to upload to IPFS: {e}")
-        return None
-
-def fetch_from_ipfs_http(cid):
-    """Fetch content from IPFS using HTTP API"""
-    try:
-        ipfs_host = cfg.get('ipfs_host', '127.0.0.1')
-        ipfs_port = cfg.get('ipfs_port', 5001)
-        ipfs_url = f"http://{ipfs_host}:{ipfs_port}/api/v0/cat"
-        
-        params = {'arg': cid}
-        response = requests.post(ipfs_url, params=params, timeout=30)
-        
-        if response.status_code == 200:
-            return response.text
-        else:
-            print(f"IPFS fetch failed: {response.status_code} - {response.text}")
-            return None
-            
-    except Exception as e:
-        print(f"Failed to fetch from IPFS: {e}")
-        return None
+        ipfs_logger.error("Failed to connect to IPFS", error=e)
+        raise
 
 def download_from_ipfs_http(cid, output_path):
     """Download file from IPFS using HTTP API"""
@@ -190,10 +190,22 @@ if BLOCKCHAIN_STORAGE_AVAILABLE:
         blockchain_storage = None
 
 def load_local_model(model_path):
-    """Load model directly using vLLM Python API"""
+    """Load model directly using vLLM Python API with caching"""
     global vllm_model
+    
+    model_id = os.path.basename(model_path.rstrip('/'))
+    
     try:
-        print(f"Loading model from {model_path}...")
+        # Check cache first
+        cached_model = get_cached_model(model_id)
+        if cached_model:
+            logger.info("Using cached model", model_id=model_id, model_path=model_path)
+            vllm_model = cached_model
+            return True
+        
+        # Load new model
+        start_time = time.time()
+        logger.info("Loading model from path", model_path=model_path, model_id=model_id)
         
         # Configure vLLM for distributed inference
         vllm_model = LLM(
@@ -205,11 +217,22 @@ def load_local_model(model_path):
             trust_remote_code=cfg.get('trust_remote_code', True)
         )
         
-        print("Model loaded successfully")
+        load_time = time.time() - start_time
+        
+        # Cache the model
+        if cache_model(model_id, vllm_model, model_path):
+            logger.model_loaded(model_path, load_time, cached=False, model_id=model_id)
+        else:
+            logger.warning("Failed to cache model", model_id=model_id, reason="memory_constraints")
+        
+        # Log cache statistics
+        cache_stats = get_cache_stats()
+        logger.info("Model cache status", **cache_stats)
+        
         return True
         
     except Exception as e:
-        print(f"Failed to load model: {e}")
+        logger.error("Failed to load model", error=e, model_path=model_path, model_id=model_id)
         return False
 
 async def initialize_mcp_inference_engine():
@@ -386,20 +409,21 @@ def monitor_and_stop():
             break
         time.sleep(5)
 
+@with_retry(max_retries=3, base_delay=2.0)
 def fetch_from_ipfs(cid, output_path):
-    """Fetch content from IPFS using HTTP API"""
+    """Fetch content from IPFS with retry logic"""
     try:
-        # For text content, fetch and save to file
-        content = fetch_from_ipfs_http(cid)
-        if content:
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            with open(output_path, 'w', encoding='utf-8') as f:
-                f.write(content)
-            return True
-        return False
+        ipfs_client = get_ipfs_client()
+        if not ipfs_client:
+            raise Exception("IPFS client not available")
+            
+        ipfs_logger.info("Fetching content from IPFS", cid=cid, output_path=output_path)
+        ipfs_client.get(cid, target=output_path)
+        ipfs_logger.info("Successfully fetched from IPFS", cid=cid)
+        return True
     except Exception as e:
-        print(f"Failed to fetch {cid} from IPFS: {e}")
-        return False
+        ipfs_logger.error("Failed to fetch from IPFS", cid=cid, error=e)
+        raise
 
 async def fetch_model_from_blockchain_storage(model_cid, output_path):
     """
