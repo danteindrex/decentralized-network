@@ -224,6 +224,43 @@ class BootstrapNode {
             });
         });
 
+        // Network configuration endpoint for auto-config
+        app.get('/api/network-config', (req, res) => {
+            // Load deployment info
+            const deploymentPath = path.join(__dirname, '../../deployment.json');
+            let contracts = {};
+            if (fs.existsSync(deploymentPath)) {
+                contracts = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
+            }
+            
+            // Get list of known bootstrap nodes
+            const bootstrapNodes = [
+                { url: `http://${this.config.staticIP}:${this.config.rpcPort}`, ipfs: `${this.config.staticIP}:5001` }
+            ];
+            
+            // Add other known bootstrap nodes from peers
+            for (const [id, peer] of this.peers.entries()) {
+                if (peer.type === 'bootstrap' && peer.endpoint) {
+                    const [host, port] = peer.endpoint.split(':');
+                    bootstrapNodes.push({
+                        url: `http://${host}:8545`,
+                        ipfs: `${host}:5001`
+                    });
+                }
+            }
+            
+            res.json({
+                network_id: 'decentralized-ai-network',
+                chain_id: this.config.chainId,
+                contract_address: contracts.InferenceCoordinator || '',
+                model_registry_address: contracts.ModelRegistry || '',
+                node_profile_registry_address: contracts.NodeProfileRegistry || '',
+                bootstrap_nodes: bootstrapNodes,
+                version: '1.0.0',
+                timestamp: Date.now()
+            });
+        });
+
         // Get all peers
         app.get('/peers', (req, res) => {
             const { type } = req.query;

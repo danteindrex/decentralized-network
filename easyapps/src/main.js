@@ -5,6 +5,9 @@ const { spawn } = require('child_process');
 const os = require('os');
 const sharedCore = require('./shared-core'); // Import the shared core module
 
+// Set user data path for shared-core
+sharedCore.setUserDataPath(app.getPath('userData'));
+
 // Register output callback from sharedCore to send messages to renderer
 sharedCore.registerOutputCallback((type, message) => {
     if (mainWindow) {
@@ -143,6 +146,14 @@ ipcMain.handle('get-node-status', async () => {
     return await sharedCore.getNodeStatus();
 });
 
+ipcMain.handle('save-chat-message', async (event, message) => {
+    return await sharedCore.saveChatMessageToIpfs(message);
+});
+
+ipcMain.handle('load-chat-messages', async () => {
+    return await sharedCore.loadChatMessagesFromIpfs();
+});
+
 ipcMain.handle('select-directory', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
         properties: ['openDirectory']
@@ -156,9 +167,24 @@ ipcMain.handle('show-message', async (event, options) => {
 
 // Network discovery
 ipcMain.handle('discover-bootstrap-nodes', async () => {
-    // Implement bootstrap node discovery logic
-    return [
-        { ip: '127.0.0.1', port: 30303, name: 'Local Node' },
-        // Add more discovery methods here
-    ];
+    return await sharedCore.discoverBootstrapNodes();
+});
+
+// Auto configuration
+ipcMain.handle('generate-auto-config', async (event, bootstrapNode) => {
+    return await sharedCore.generateAutoConfig(bootstrapNode);
+});
+
+// Network config management
+ipcMain.handle('save-network-config', async (event, config) => {
+    return await sharedCore.saveNetworkConfig(config);
+});
+
+ipcMain.handle('load-network-config', async () => {
+    return await sharedCore.loadNetworkConfig();
+});
+
+// Get network info
+ipcMain.handle('get-network-info', async () => {
+    return await sharedCore.getNetworkInfo();
 });

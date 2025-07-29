@@ -28,6 +28,9 @@ const App = () => {
     const [selectedFile, setSelectedFile] = useState(null);
     const [uploadedFiles, setUploadedFiles] = useState([]);
 
+    // Combined storage items for display
+    const [storageItems, setStorageItems] = useState([]);
+
     // Function to check network status
     const checkNetworkStatus = useCallback(async () => {
         try {
@@ -51,23 +54,64 @@ const App = () => {
 
     useEffect(() => {
         // Load configuration from Electron main process
-        ipcRenderer.invoke('load-config').then(loadedConfig => {
-            if (loadedConfig) {
+        ipcRenderer.invoke('load-config').then(async (loadedConfig) => {
+            if (loadedConfig && loadedConfig.eth_node && loadedConfig.contract_address !== '0xYourInferenceCoordinatorContractAddress') {
                 setAppConfig(prevConfig => ({ ...prevConfig, ...loadedConfig }));
+            } else {
+                // Try to load network config first
+                const networkConfig = await ipcRenderer.invoke('load-network-config');
+                if (networkConfig) {
+                    setAppConfig(prevConfig => ({ ...prevConfig, ...networkConfig }));
+                } else {
+                    // Auto-generate config for new users
+                    console.log('No configuration found, generating auto-config...');
+                    const autoConfig = await ipcRenderer.invoke('generate-auto-config');
+                    if (autoConfig) {
+                        setAppConfig(prevConfig => ({ ...prevConfig, ...autoConfig }));
+                        // Save the auto-generated config
+                        await ipcRenderer.invoke('save-network-config', autoConfig);
+                        await ipcRenderer.invoke('save-config', autoConfig);
+                        
+                        // Show welcome message
+                        setChatHistory([{
+                            role: 'assistant',
+                            content: `🎉 Welcome to the Decentralized AI Network! 
+
+I've automatically generated a new wallet for you:
+• Address: ${autoConfig.default_account}
+• Network: ${autoConfig.network_id}
+
+⚠️ **Important**: Your wallet currently has 0 ETH. To use AI inference, you'll need some ETH for gas fees. You can:
+1. Get test ETH from a faucet if on testnet
+2. Transfer ETH from another wallet
+3. Join as a worker node to earn ETH
+
+Your configuration has been saved. You can view it in the Settings tab.`,
+                            timestamp: new Date()
+                        }]);
+                    }
+                }
             }
         });
 
         // Initial network status check (will run after config is loaded due to dependency)
         checkNetworkStatus();
 
-        // Initial chat message
-        setChatHistory([
-            {
-                role: 'assistant',
-                content: 'Hello! I\'m your IPFS and AI assistant. I can help you upload files, run AI inference, and manage your decentralized storage. What would you like to do today?',
-                timestamp: new Date()
+        // Load chat history from IPFS
+        ipcRenderer.invoke('load-chat-messages').then(messages => {
+            if (messages) {
+                setChatHistory(messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)));
+            } else {
+                // Initial chat message if no history
+                setChatHistory([
+                    {
+                        role: 'assistant',
+                        content: 'Hello! I\'m your IPFS and AI assistant. I can help you upload files, run AI inference, and manage your decentralized storage. What would you like to do today?',
+                        timestamp: new Date()
+                    }
+                ]);
             }
-        ]);
+        });
 
         // Update storage info and files (mock for now)
         setStorageInfo(getMockStorageInfo());
@@ -89,6 +133,24 @@ const App = () => {
 
     }, [checkNetworkStatus]); // Dependency on checkNetworkStatus
 
+    // Combined storage items for display
+    useEffect(() => {
+        const combined = [
+            ...uploadedFiles.map(file => ({ ...file, type: 'file' })),
+            ...chatHistory.filter(msg => msg.role === 'user' && msg.cid).map(msg => ({
+                id: msg.cid,
+                name: `Chat Message (${msg.timestamp.toLocaleString()})`,
+                size: new TextEncoder().encode(JSON.stringify(msg)).length, // Approximate size
+                hash: msg.cid,
+                uploaded_at: msg.timestamp,
+                mime_type: 'application/json',
+                type: 'chat_message',
+                content: msg.content
+            }))
+        ];
+        setStorageItems(combined.sort((a, b) => new Date(a.uploaded_at) - new Date(b.uploaded_at)));
+    }, [uploadedFiles, chatHistory]);
+
     const handleSendMessage = async () => {
         if (!userInput.trim()) return;
 
@@ -99,6 +161,16 @@ const App = () => {
         };
         setChatHistory(prev => [...prev, newUserMessage]);
         setUserInput('');
+
+        // Save user message to IPFS
+        const messageCid = await ipcRenderer.invoke('save-chat-message', newUserMessage);
+        if (messageCid) {
+            console.log("Chat message saved to IPFS with CID:", messageCid);
+            // Update the message with its CID for display in storage tab
+            setChatHistory(prev => prev.map(msg => msg === newUserMessage ? { ...msg, cid: messageCid } : msg));
+        } else {
+            console.error("Failed to save chat message to IPFS.");
+        }
 
         const response = await processChatRequest(userInput);
 
@@ -320,25 +392,26 @@ const App = () => {
             <h2>IPFS Storage Management</h2>
             <p>Used Space: {formatFileSize(storageInfo.used_space)}</p>
             <p>Available Space: {formatFileSize(storageInfo.available_space)}</p>
-            <p>Files Stored: {uploadedFiles.length}</p>
+            <p>Files Stored: {storageItems.length}</p>
 
             <h3>Upload File to IPFS</h3>
             <input type="file" onChange={handleFileChange} />
             <button onClick={handleFileUpload} disabled={!selectedFile}>Upload File</button>
 
-            <h3>Your Uploaded Files</h3>
-            {uploadedFiles.length > 0 ? (
+            <h3>Your Stored Items</h3>
+            {storageItems.length > 0 ? (
                 <ul>
-                    {uploadedFiles.map((file) => (
-                        <li key={file.id}>
-                            <strong>{file.name}</strong> ({formatFileSize(file.size)}) - CID: {file.hash}
+                    {storageItems.map((item) => (
+                        <li key={item.id}>
+                            <strong>{item.name}</strong> ({formatFileSize(item.size)}) - CID: {item.hash}
+                            {item.type === 'chat_message' && <p style={{ margin: '5px 0 0 0', fontSize: '0.9em', color: '#666' }}>Content: {item.content}</p>}
                             <br />
-                            <small>Uploaded: {new Date(file.uploaded_at).toLocaleString()}</small>
+                            <small>Uploaded: {new Date(item.uploaded_at).toLocaleString()}</small>
                         </li>
                     ))}
                 </ul>
             ) : (
-                <p>No files uploaded yet.</p>
+                <p>No items stored yet.</p>
             )}
         </div>
     );
