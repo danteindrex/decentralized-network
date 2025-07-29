@@ -1,0 +1,10 @@
+[
+    {
+        "name": "DeepSeek-1B",
+        "hash": "QmVyvJ3BUuz1KiFidCHCKN2ZNJkt2dNWREYuyn4AJSnu6Q",
+        "size": 104857600,
+        "type": "model",
+        "uploaded_at": "2025-01-29T12:00:00",
+        "description": "DeepSeek 1B parameter language model for AI inference"
+    }
+]

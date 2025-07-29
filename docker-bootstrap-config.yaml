@@ -1,0 +1,109 @@
+version: '3.8'
+
+services:
+  bootstrap-node:
+    build: 
+      context: .
+      dockerfile: Dockerfile.bootstrap
+    container_name: ai-network-bootstrap
+    environment:
+      - NODE_TYPE=bootstrap
+      - NETWORK_NAME=AI-Inference-Network
+      - CHAIN_ID=1337
+      - STATIC_IP=${EXTERNAL_IP:-localhost}
+      - ETH_NODE_URL=http://geth:8545
+      - IPFS_HOST=ipfs
+      - IPFS_PORT=5001
+      - BOOTSTRAP_PRIVATE_KEY=${BOOTSTRAP_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
+    ports:
+      - "8080:8080"      # API port
+      - "30303:30303"    # P2P port
+      - "8545:8545"      # ETH RPC
+      - "8546:8546"      # ETH WebSocket
+    volumes:
+      - bootstrap-data:/data
+      - ./contracts:/contracts
+      - ./nodes:/nodes
+    networks:
+      - ai-network
+    depends_on:
+      - geth
+      - ipfs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  geth:
+    image: ethereum/client-go:latest
+    container_name: ai-network-geth
+    command:
+      - --datadir=/data
+      - --networkid=1337
+      - --http
+      - --http.addr=0.0.0.0
+      - --http.port=8545
+      - --http.api=eth,net,web3,personal,admin,miner
+      - --http.corsdomain=*
+      - --ws
+      - --ws.addr=0.0.0.0
+      - --ws.port=8546
+      - --ws.api=eth,net,web3
+      - --mine
+      - --miner.etherbase=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+      - --allow-insecure-unlock
+      - --unlock=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+      - --password=/dev/null
+    volumes:
+      - geth-data:/data
+    networks:
+      - ai-network
+    ports:
+      - "8545:8545"
+      - "8546:8546"
+      - "30303:30303"
+
+  ipfs:
+    image: ipfs/go-ipfs:latest
+    container_name: ai-network-ipfs
+    environment:
+      - IPFS_PROFILE=server
+    ports:
+      - "5001:5001"  # API
+      - "8081:8080"  # Gateway
+      - "4001:4001"  # P2P
+    volumes:
+      - ipfs-data:/data/ipfs
+    networks:
+      - ai-network
+    command: daemon --migrate=true --enable-pubsub-experiment
+
+  contract-deployer:
+    build:
+      context: .
+      dockerfile: Dockerfile.deployer
+    container_name: ai-network-deployer
+    environment:
+      - ETH_NODE_URL=http://geth:8545
+      - PRIVATE_KEY=${DEPLOYER_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
+    volumes:
+      - ./contracts:/contracts
+      - ./deployment.json:/contracts/deployment.json
+    networks:
+      - ai-network
+    depends_on:
+      geth:
+        condition: service_healthy
+    restart: "no"
+
+networks:
+  ai-network:
+    driver: bridge
+
+volumes:
+  bootstrap-data:
+  geth-data:
+  ipfs-data:

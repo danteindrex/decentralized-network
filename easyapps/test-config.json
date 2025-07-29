@@ -1,0 +1,16 @@
+{
+  "eth_node": "http://192.168.1.103:8545",
+  "ipfs_host": "192.168.1.103",
+  "ipfs_port": 5001,
+  "contract_address": "",
+  "model_registry_address": "",
+  "default_account": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "private_key": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+  "network_id": "AI-Inference-Network",
+  "bootstrap_nodes": [
+    {
+      "url": "http://192.168.1.103:8545",
+      "ipfs": "192.168.1.103:5001"
+    }
+  ]
+}

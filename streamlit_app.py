@@ -11,6 +11,43 @@ import plotly.express as px
 import plotly.graph_objects as go
 from pathlib import Path
 
+# For FastAPI integration
+from fastapi import FastAPI
+import uvicorn
+import threading
+
+# --- FastAPI App for Network Configuration ---
+network_api_app = FastAPI()
+
+@network_api_app.get("/network-config")
+async def get_network_config():
+    config = load_config()
+    if not config:
+        return {"error": "Configuration not loaded"}
+    
+    # Exclude sensitive info like private key
+    public_config = {
+        "eth_node": config.get('eth_node'),
+        "ipfs_host": config.get('ipfs_host'),
+        "ipfs_port": config.get('ipfs_port'),
+        "contract_address": config.get('contract_address'),
+        "model_registry_address": config.get('model_registry_address'),
+        "network_id": "decentralized-ai-network", # Example network ID
+        "bootstrap_nodes": [] # This node itself can be a bootstrap node
+    }
+    return public_config
+
+def run_fastapi():
+    uvicorn.run(network_api_app, host="0.0.0.0", port=8001, log_level="warning")
+
+# Start FastAPI in a separate thread
+# This ensures Streamlit can run without being blocked by FastAPI
+if not hasattr(st, 'fastapi_thread_started'):
+    st.fastapi_thread_started = True
+    threading.Thread(target=run_fastapi, daemon=True).start()
+
+# --- Streamlit App Continues ---
+
 # Page configuration
 st.set_page_config(
     page_title="Surgent - Decentralized AI Network",
@@ -18,6 +55,30 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Path for persistent storage of uploaded file metadata
+UPLOADED_FILES_METADATA_PATH = Path(__file__).parent / "uploaded_files_metadata.json"
+JOB_HISTORY_PATH = Path(__file__).parent / "job_history.json"
+
+def load_uploaded_files_metadata():
+    if UPLOADED_FILES_METADATA_PATH.exists():
+        with open(UPLOADED_FILES_METADATA_PATH, 'r') as f:
+            return json.load(f)
+    return []
+
+def save_uploaded_files_metadata(metadata):
+    with open(UPLOADED_FILES_METADATA_PATH, 'w') as f:
+        json.dump(metadata, f, indent=4)
+
+def load_job_history():
+    if JOB_HISTORY_PATH.exists():
+        with open(JOB_HISTORY_PATH, 'r') as f:
+            return json.load(f)
+    return []
+
+def save_job_history(history):
+    with open(JOB_HISTORY_PATH, 'w') as f:
+        json.dump(history, f, indent=4, default=str)
 
 # Load configuration
 @st.cache_data
@@ -30,8 +91,15 @@ def load_config():
             'default_account': os.getenv('DEFAULT_ACCOUNT'),
             'private_key': os.getenv('PRIVATE_KEY'),
             'ipfs_host': os.getenv('IPFS_HOST', '127.0.0.1'),
-            'ipfs_port': int(os.getenv('IPFS_PORT', '5001')),
+            'ipfs_port': 5001, # Default value
         }
+        raw_ipfs_port = os.getenv('IPFS_PORT')
+        st.write(f"Debug: Raw IPFS_PORT from env: {raw_ipfs_port}") # Debug print
+        try:
+            config['ipfs_port'] = int(raw_ipfs_port or '5001')
+        except ValueError:
+            st.warning(f"Invalid IPFS_PORT environment variable: {raw_ipfs_port}. Using default 5001.")
+
         
         # Try to load deployment info
         deployment_path = os.path.join(os.path.dirname(__file__), 'deployment.json')
@@ -138,7 +206,7 @@ def init_web3(config):
         return None, None
 
 # IPFS HTTP client functions
-def upload_to_ipfs(content, is_json=False):
+def upload_to_ipfs(file_content, file_name, is_json=False):
     """Upload content to IPFS using HTTP API"""
     try:
         ipfs_host = os.getenv('IPFS_HOST', '127.0.0.1')
@@ -146,9 +214,11 @@ def upload_to_ipfs(content, is_json=False):
         ipfs_url = f"http://{ipfs_host}:{ipfs_port}/api/v0/add"
         
         if is_json:
-            content = json.dumps(content)
-        
-        files = {'file': ('content', content)}
+            content_to_upload = json.dumps(file_content)
+        else:
+            content_to_upload = file_content
+
+        files = {'file': (file_name, content_to_upload)}
         response = requests.post(ipfs_url, files=files, timeout=30)
         
         if response.status_code == 200:
@@ -256,35 +326,18 @@ def format_file_size(size_bytes):
 
 def get_mock_storage_info():
     """Get mock storage information"""
+    uploaded_files = load_uploaded_files_metadata()
+    total_size = sum(f['size'] for f in uploaded_files)
     return {
-        'used_space': 2049024,  # ~2MB
-        'total_space': 1073741824,  # 1GB
-        'file_count': len(st.session_state.get('uploaded_files', [])),
-        'available_space': 1073741824 - 2049024
+        'used_space': total_size,
+        'total_space': 1073741824,  # 1GB (mock total space)
+        'file_count': len(uploaded_files),
+        'available_space': 1073741824 - total_size
     }
 
 def get_mock_files():
-    """Get mock file list"""
-    if 'uploaded_files' not in st.session_state:
-        st.session_state.uploaded_files = [
-            {
-                'id': '1',
-                'name': 'example.txt',
-                'size': 1024,
-                'hash': 'QmExampleHash1234567890abcdef',
-                'uploaded_at': datetime.now() - pd.Timedelta(days=1),
-                'mime_type': 'text/plain'
-            },
-            {
-                'id': '2', 
-                'name': 'model_weights.bin',
-                'size': 2048000,
-                'hash': 'QmModelHash1234567890abcdef',
-                'uploaded_at': datetime.now() - pd.Timedelta(days=2),
-                'mime_type': 'application/octet-stream'
-            }
-        ]
-    return st.session_state.uploaded_files
+    """Get actual file list from metadata"""
+    return load_uploaded_files_metadata()
 
 def create_storage_chart():
     """Create storage usage chart"""
@@ -309,10 +362,12 @@ def create_storage_chart():
 
 def create_job_performance_chart():
     """Create job performance chart"""
-    if 'job_history' not in st.session_state or not st.session_state.job_history:
+    # Load job history from persistent storage
+    job_history = load_job_history()
+    if not job_history:
         return None
     
-    df = pd.DataFrame(st.session_state.job_history)
+    df = pd.DataFrame(job_history)
     
     fig = px.line(
         df, 
@@ -408,6 +463,18 @@ def render_chat_interface(w3, contract, config):
     st.header("💬 AI Assistant Chat")
     st.markdown("Chat with the decentralized AI network to process your requests")
     
+    # Get uploaded models for selection
+    uploaded_models = [f for f in load_uploaded_files_metadata() if f.get('type') == 'model']
+    model_options = {model['name']: model['hash'] for model in uploaded_models}
+    
+    selected_model_name = st.selectbox(
+        "Select Model for Inference:",
+        options=list(model_options.keys()) or ["No models uploaded"],
+        disabled=not bool(model_options)
+    )
+    
+    selected_model_cid = model_options.get(selected_model_name)
+
     # Initialize chat history
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = [
@@ -468,7 +535,7 @@ def render_chat_interface(w3, contract, config):
         })
         
         # Process the request
-        response = process_chat_request(user_input, w3, contract, config)
+        response = process_chat_request(user_input, w3, contract, config, selected_model_cid)
         
         # Add assistant response
         st.session_state.chat_history.append({
@@ -479,7 +546,7 @@ def render_chat_interface(w3, contract, config):
         
         st.rerun()
 
-def process_chat_request(user_input, w3, contract, config):
+def process_chat_request(user_input, w3, contract, config, selected_model_cid):
     """Process user chat requests and return appropriate responses"""
     user_input_lower = user_input.lower()
     
@@ -490,7 +557,7 @@ def process_chat_request(user_input, w3, contract, config):
         else:
             prompt = user_input
         
-        return run_inference_from_chat(prompt, w3, contract, config)
+        return run_inference_from_chat(prompt, w3, contract, config, selected_model_cid)
     
     elif 'upload' in user_input_lower or 'file' in user_input_lower:
         return "I can help you upload files! Please use the Storage tab to upload files to IPFS. You can drag and drop files or use the upload button."
@@ -504,8 +571,7 @@ def process_chat_request(user_input, w3, contract, config):
         
 • **AI Inference**: Say "run inference on: [your prompt]" to get AI responses
 • **File Management**: Upload, download, and manage files on IPFS
-• **Storage Stats**: Check your storage usage and file information
-• **Network Status**: Monitor blockchain and IPFS connectivity
+• **Storage Stats**: Check your storage usage and file information\n• **Network Status**: Monitor blockchain and IPFS connectivity
 
 Try asking me something like:
 - "run inference on: Explain quantum computing"
@@ -516,12 +582,12 @@ Try asking me something like:
     else:
         return f"I understand you said: '{user_input}'. I can help with AI inference, file management, and storage. Type 'help' to see what I can do!"
 
-def run_inference_from_chat(prompt, w3, contract, config):
+def run_inference_from_chat(prompt, w3, contract, config, model_cid):
     """Run inference from chat and return formatted response"""
+    if not model_cid:
+        return "❌ No model selected for inference. Please upload a model and select it."
+
     try:
-        # Use the simple test model
-        model_cid = "QmetMnp9xtCrfe4U4Fmjk5CZLZj3fQy1gF7M9BV31tKiNe"
-        
         # Upload prompt to IPFS
         prompt_cid = upload_to_ipfs(prompt)
         if not prompt_cid:
@@ -543,22 +609,21 @@ def run_inference_from_chat(prompt, w3, contract, config):
             response_data = fetch_from_ipfs(response_cid)
             if response_data:
                 # Store in job history
-                if 'job_history' not in st.session_state:
-                    st.session_state.job_history = []
-                
-                st.session_state.job_history.append({
-                    'job_id': job_id,
+                job_history = load_job_history()
+                job_history.append({
+                    'job_id': str(job_id),
                     'prompt': prompt[:50] + '...' if len(prompt) > 50 else prompt,
                     'status': 'Completed',
-                    'timestamp': datetime.now(),
-                    'duration': 30,  # Mock duration
+                    'timestamp': datetime.now().isoformat(),
+                    'duration': 30,  # Mock duration, replace with actual if available
                     'worker': worker[:10] + '...' if worker else 'Unknown'
                 })
+                save_job_history(job_history)
                 
                 if isinstance(response_data, dict) and 'response' in response_data:
                     return f"🎉 **Inference Complete!**\n\n**Response:** {response_data['response']}\n\n*Job ID: {job_id}*"
                 else:
-                    return f"🎉 **Inference Complete!**\n\n**Response:** {response_data}\n\n*Job ID: {job_id}*"
+                    return f"🎉 **Inference Complete!**\n\n*Job ID: {job_id}*"
             else:
                 return f"✅ Inference completed but failed to fetch response. Job ID: {job_id}"
         else:
@@ -591,7 +656,7 @@ def render_dashboard(w3, contract, config):
     
     with col4:
         # Mock job count
-        job_count = len(st.session_state.get('job_history', []))
+        job_count = len(load_job_history())
         st.metric("Total Jobs", str(job_count), f"+{job_count} this session")
     
     st.markdown("---")
@@ -602,12 +667,13 @@ def render_dashboard(w3, contract, config):
     with col1:
         st.subheader("🔄 Recent Activity")
         
-        if 'job_history' in st.session_state and st.session_state.job_history:
-            for job in st.session_state.job_history[-5:]:  # Show last 5 jobs
+        job_history = load_job_history()
+        if job_history:
+            for job in job_history[-5:]:  # Show last 5 jobs
                 st.markdown(f"""
                 <div class="file-item">
                     <strong>Job #{job['job_id']}</strong><br>
-                    <small>{job['prompt']} • {job['timestamp'].strftime('%H:%M:%S')} • {job['status']}</small>
+                    <small>{job['prompt']} • {datetime.fromisoformat(job['timestamp']).strftime('%H:%M:%S')} • {job['status']}</small>
                 </div>
                 """, unsafe_allow_html=True)
         else:
@@ -634,10 +700,12 @@ def render_dashboard(w3, contract, config):
             with col1:
                 if st.button("Submit", type="primary"):
                     if quick_prompt:
-                        response = run_inference_from_chat(quick_prompt, w3, contract, config)
-                        st.success("Job submitted! Check AI Chat for results.")
-                        st.session_state.quick_inference = False
-                        st.rerun()
+                        # Need to pass selected model CID here
+                        st.warning("Model selection not yet implemented for Quick Inference.")
+                        # response = run_inference_from_chat(quick_prompt, w3, contract, config, selected_model_cid)
+                        # st.success("Job submitted! Check AI Chat for results.")
+                        # st.session_state.quick_inference = False
+                        # st.rerun()
             
             with col2:
                 if st.button("Cancel"):
@@ -690,28 +758,35 @@ def render_storage_interface():
     
     if uploaded_file:
         for file in uploaded_file:
-            if st.button(f"Upload {file.name}", key=f"upload_{file.name}"):
+            file_type = 'model' if file.name.endswith(('.bin', '.pt', '.onnx', '.h5')) else 'file'
+            if st.button(f"Upload {file.name} as {file_type}", key=f"upload_{file.name}"):
                 with st.spinner(f"Uploading {file.name} to IPFS..."):
-                    # Mock upload process
-                    time.sleep(2)
+                    # Read file content
+                    file_content = file.read()
                     
-                    # Add to mock file list
-                    new_file = {
-                        'id': str(len(st.session_state.get('uploaded_files', [])) + 1),
-                        'name': file.name,
-                        'size': file.size,
-                        'hash': f"Qm{hash(file.name + str(time.time()))}"[:46],
-                        'uploaded_at': datetime.now(),
-                        'mime_type': file.type or 'application/octet-stream'
-                    }
+                    # Upload to IPFS
+                    cid = upload_to_ipfs(file_content, file.name)
                     
-                    if 'uploaded_files' not in st.session_state:
-                        st.session_state.uploaded_files = []
-                    
-                    st.session_state.uploaded_files.append(new_file)
-                    st.success(f"✅ {file.name} uploaded successfully!")
-                    st.info(f"IPFS Hash: {new_file['hash']}")
-                    st.rerun()
+                    if cid:
+                        # Add to uploaded files metadata
+                        new_file_metadata = {
+                            'id': str(time.time()), # Simple unique ID
+                            'name': file.name,
+                            'size': file.size,
+                            'hash': cid,
+                            'uploaded_at': datetime.now().isoformat(),
+                            'mime_type': file.type or 'application/octet-stream',
+                            'type': file_type # Store the type
+                        }
+                        uploaded_files_metadata = load_uploaded_files_metadata()
+                        uploaded_files_metadata.append(new_file_metadata)
+                        save_uploaded_files_metadata(uploaded_files_metadata)
+                        
+                        st.success(f"✅ {file.name} uploaded successfully!")
+                        st.info(f"IPFS Hash: {cid}")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Failed to upload {file.name} to IPFS.")
     
     # File list
     st.subheader("📁 Your Files")
@@ -719,28 +794,57 @@ def render_storage_interface():
     files = get_mock_files()
     
     if files:
-        for file in files:
-            with st.expander(f"📄 {file['name']} ({format_file_size(file['size'])})"):
-                col1, col2 = st.columns([3, 1])
-                
-                with col1:
-                    st.write(f"**Hash:** `{file['hash']}`")
-                    st.write(f"**Size:** {format_file_size(file['size'])}")
-                    st.write(f"**Type:** {file['mime_type']}")
-                    st.write(f"**Uploaded:** {file['uploaded_at'].strftime('%Y-%m-%d %H:%M:%S')}")
-                
-                with col2:
-                    if st.button("📥 Download", key=f"download_{file['id']}"):
-                        st.success(f"Downloading {file['name']}...")
+        # Separate models and other files for display
+        models = [f for f in files if f.get('type') == 'model']
+        other_files = [f for f in files if f.get('type') != 'model']
+
+        if models:
+            st.write("#### Uploaded Models")
+            for file in models:
+                with st.expander(f"🧠 {file['name']} ({format_file_size(file['size'])})"):
+                    col1, col2 = st.columns([3, 1])
                     
-                    if st.button("🗑️ Delete", key=f"delete_{file['id']}"):
-                        # Remove from session state
-                        st.session_state.uploaded_files = [
-                            f for f in st.session_state.uploaded_files 
-                            if f['id'] != file['id']
-                        ]
-                        st.success(f"Deleted {file['name']}")
-                        st.rerun()
+                    with col1:
+                        st.write(f"**Hash:** `{file['hash']}`")
+                        st.write(f"**Size:** {format_file_size(file['size'])}")
+                        st.write(f"**Type:** {file['mime_type']}")
+                        st.write(f"**Uploaded:** {datetime.fromisoformat(file['uploaded_at']).strftime('%Y-%m-%d %H:%M:%S')}")
+                    
+                    with col2:
+                        if st.button("📥 Download", key=f"download_{file['id']}"):
+                            st.success(f"Downloading {file['name']}...")
+                        
+                        if st.button("🗑️ Delete", key=f"delete_{file['id']}"):
+                            # Remove from metadata
+                            uploaded_files_metadata = load_uploaded_files_metadata()
+                            updated_metadata = [f for f in uploaded_files_metadata if f['id'] != file['id']]
+                            save_uploaded_files_metadata(updated_metadata)
+                            st.success(f"Deleted {file['name']}")
+                            st.rerun()
+        
+        if other_files:
+            st.write("#### Other Uploaded Files")
+            for file in other_files:
+                with st.expander(f"📄 {file['name']} ({format_file_size(file['size'])})"):
+                    col1, col2 = st.columns([3, 1])
+                    
+                    with col1:
+                        st.write(f"**Hash:** `{file['hash']}`")
+                        st.write(f"**Size:** {format_file_size(file['size'])}")
+                        st.write(f"**Type:** {file['mime_type']}")
+                        st.write(f"**Uploaded:** {datetime.fromisoformat(file['uploaded_at']).strftime('%Y-%m-%d %H:%M:%S')}")
+                    
+                    with col2:
+                        if st.button("📥 Download", key=f"download_{file['id']}"):
+                            st.success(f"Downloading {file['name']}...")
+                        
+                        if st.button("🗑️ Delete", key=f"delete_{file['id']}"):
+                            # Remove from metadata
+                            uploaded_files_metadata = load_uploaded_files_metadata()
+                            updated_metadata = [f for f in uploaded_files_metadata if f['id'] != file['id']]
+                            save_uploaded_files_metadata(updated_metadata)
+                            st.success(f"Deleted {file['name']}")
+                            st.rerun()
     else:
         st.info("No files uploaded yet. Use the upload section above to add files.")
 
@@ -764,33 +868,20 @@ def render_analytics():
         st.metric("Cost per Job", "$0.02", "-$0.01 from last week")
     
     # Charts
-    if st.session_state.get('job_history'):
+    job_history = load_job_history()
+    if job_history:
         st.subheader("📊 Job Performance")
         perf_chart = create_job_performance_chart()
         if perf_chart:
             st.plotly_chart(perf_chart, use_container_width=True)
+    else:
+        st.info("No job history available for analytics.")
     
     # Network statistics
     st.subheader("🌐 Network Statistics")
     
-    # Mock network data
-    network_data = {
-        'Worker Nodes': [3, 4, 3, 5, 4, 3, 4],
-        'Jobs Processed': [12, 15, 18, 22, 19, 16, 20],
-        'Day': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-    }
-    
-    df_network = pd.DataFrame(network_data)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        fig_workers = px.line(df_network, x='Day', y='Worker Nodes', title='Active Worker Nodes')
-        st.plotly_chart(fig_workers, use_container_width=True)
-    
-    with col2:
-        fig_jobs = px.bar(df_network, x='Day', y='Jobs Processed', title='Jobs Processed Daily')
-        st.plotly_chart(fig_jobs, use_container_width=True)
+    # Mock network data - REMOVED
+    st.info("Network statistics will be displayed here once real data is available.")
 
 def render_settings(config):
     """Render settings and configuration"""
@@ -864,8 +955,8 @@ def render_settings(config):
         if st.button("📊 Export Data", use_container_width=True):
             # Mock export functionality
             export_data = {
-                'job_history': st.session_state.get('job_history', []),
-                'uploaded_files': st.session_state.get('uploaded_files', []),
+                'job_history': load_job_history(), # Use actual job history
+                'uploaded_files': load_uploaded_files_metadata(), # Use actual uploaded files
                 'export_time': datetime.now().isoformat()
             }
             st.download_button(

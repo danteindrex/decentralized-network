@@ -2,12 +2,15 @@
 FROM node:18-alpine
 
 WORKDIR /app
+ENV PATH /usr/local/bin:$PATH
 
-# Install system dependencies and geth
-RUN apk add --no-cache python3 py3-pip bash curl wget \
-    && wget -O /tmp/geth.tar.gz https://gethstore.blob.core.windows.net/builds/geth-linux-amd64-1.13.5-916d6a44.tar.gz \
+# Install system dependencies and glibc compatibility
+RUN apk add --no-cache python3 py3-pip bash curl wget ca-certificates gcompat
+
+# Install geth from stable release
+RUN wget https://gethstore.blob.core.windows.net/builds/geth-linux-amd64-1.13.5-916d6a44.tar.gz -O /tmp/geth.tar.gz \
     && tar -xzf /tmp/geth.tar.gz -C /tmp \
-    && mv /tmp/geth-linux-amd64-1.13.5-916d6a44/geth /usr/local/bin/ \
+    && mv /tmp/geth-linux-amd64-1.13.5-916d6a44/geth /usr/local/bin/geth \
     && chmod +x /usr/local/bin/geth \
     && rm -rf /tmp/geth*
 
@@ -19,6 +22,8 @@ RUN npm ci --only=production
 COPY nodes/bootstrap/ ./nodes/bootstrap/
 COPY nodes/common/ ./nodes/common/
 COPY orchestrator/abis/ ./orchestrator/abis/
+COPY services/ ./services/
+COPY genesis.json ./
 
 # Create data directory
 RUN mkdir -p /app/data

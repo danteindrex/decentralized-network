@@ -1,6 +1,8 @@
 streamlit
 web3
-ipfshttpclient
+requests
 pyyaml
 pandas
-requests
+plotly
+fastapi
+uvicorn

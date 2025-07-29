@@ -429,10 +429,11 @@ async function generateAutoConfig(bootstrapNode = null) {
     
     // Default bootstrap nodes (can be expanded)
     const defaultBootstrapNodes = [
-        { url: 'http://localhost:8545', ipfs: 'localhost:5001' },
-        // Add more public bootstrap nodes here as network grows
-        { url: 'http://bootstrap1.decentralized-ai.network:8545', ipfs: 'bootstrap1.decentralized-ai.network:5001' },
-        { url: 'http://bootstrap2.decentralized-ai.network:8545', ipfs: 'bootstrap2.decentralized-ai.network:5001' }
+        { url: 'https://bootstrap-node.onrender.com', ipfs: '35.160.120.126:5001' },
+        { url: 'http://35.160.120.126:8545', ipfs: '35.160.120.126:5001' },
+        { url: 'http://44.233.151.27:8545', ipfs: '44.233.151.27:5001' },
+        { url: 'http://34.211.200.85:8545', ipfs: '34.211.200.85:5001' },
+        { url: 'http://localhost:8545', ipfs: 'localhost:5001' }
     ];
     
     // Try to discover bootstrap nodes
@@ -546,6 +547,10 @@ async function discoverBootstrapNodes() {
     
     // Method 3: Known public nodes (hardcoded fallback)
     discoveredNodes.push(
+        { url: 'https://bootstrap-node.onrender.com', ipfs: '35.160.120.126:5001' },
+        { url: 'http://35.160.120.126:8545', ipfs: '35.160.120.126:5001' },
+        { url: 'http://44.233.151.27:8545', ipfs: '44.233.151.27:5001' },
+        { url: 'http://34.211.200.85:8545', ipfs: '34.211.200.85:5001' },
         { url: 'http://localhost:8545', ipfs: 'localhost:5001' }
     );
     

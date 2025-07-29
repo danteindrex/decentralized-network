@@ -82,22 +82,15 @@ class BootstrapNode {
             '--http',
             '--http.addr', '0.0.0.0',
             '--http.port', this.config.rpcPort.toString(),
-            '--http.api', 'eth,net,web3,personal,txpool',
+            '--http.api', 'eth,net,web3,personal,txpool,clique',
             '--ws',
             '--ws.addr', '0.0.0.0',
             '--ws.port', this.config.wsPort.toString(),
             '--ws.api', 'eth,net,web3',
             '--nodekey', path.join(this.config.dataDir, 'nodekey'),
             '--nat', 'extip:' + this.config.staticIP,
-            '--maxpeers', '100',
             '--gcmode', 'archive', // Keep full state for bootstrap
-            '--syncmode', 'full',
-            '--mine', // Enable mining for block production
-            '--miner.threads', '1',
-            '--miner.etherbase', '0x71562b71999873db5b286df957af199ec94617f7',
-            '--unlock', '0x71562b71999873db5b286df957af199ec94617f7',
-            '--password', '/dev/null',
-            '--allow-insecure-unlock'
+            '--syncmode', 'full'
         ];
 
         // Add bootnodes if any
@@ -108,7 +101,7 @@ class BootstrapNode {
         // Initialize genesis if needed
         await this.initGenesis();
 
-        const geth = spawn('geth', gethArgs, {
+        const geth = spawn('/usr/local/bin/geth', gethArgs, {
             stdio: 'inherit',
             env: { ...process.env }
         });
@@ -147,7 +140,7 @@ class BootstrapNode {
         const initArgs = ['init', '--datadir', this.config.dataDir, genesisPath];
         
         return new Promise((resolve, reject) => {
-            const init = spawn('geth', initArgs, { stdio: 'pipe' });
+            const init = spawn('/usr/local/bin/geth', initArgs, { stdio: 'pipe' });
             
             init.on('exit', (code) => {
                 if (code === 0) {

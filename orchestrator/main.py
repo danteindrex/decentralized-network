@@ -114,7 +114,22 @@ except Exception as e:
 
 try:
     logger.info("Loading smart contract", contract_address=cfg['contract_address'])
-    contract = w3.eth.contract(address=cfg['contract_address'], abi=cfg['contract_abi'])
+    # Load contract ABI
+    abi_path = os.path.join(os.path.dirname(__file__), 'contract_abi.json')
+    if not os.path.exists(abi_path):
+        # Try to load from artifacts
+        abi_path = os.path.join(os.path.dirname(__file__), '..', 'artifacts', 'contracts', 'InferenceCoordinator.sol', 'InferenceCoordinator.json')
+        if os.path.exists(abi_path):
+            with open(abi_path, 'r') as f:
+                contract_abi = json.load(f)['abi']
+        else:
+            logger.error("Contract ABI not found")
+            sys.exit(1)
+    else:
+        with open(abi_path, 'r') as f:
+            contract_abi = json.load(f)
+    
+    contract = w3.eth.contract(address=cfg['contract_address'], abi=contract_abi)
     logger.info("Smart contract loaded successfully")
 except Exception as e:
     logger.error("Failed to load smart contract", error=e, contract_address=cfg['contract_address'])

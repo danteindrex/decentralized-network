@@ -1,0 +1,10 @@
+{
+  "nodeType": "user",
+  "ethNode": "http://192.168.1.103:8545",
+  "ipfsHost": "192.168.1.103",
+  "ipfsPort": 5001,
+  "bootstrapNode": "http://192.168.1.103:8080",
+  "account": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "networkName": "AI-Inference-Network",
+  "chainId": 1337
+}

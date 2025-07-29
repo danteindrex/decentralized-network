@@ -1,0 +1,45 @@
+[
+  {
+    "inputs": [
+      {"name": "promptCID", "type": "string"},
+      {"name": "modelCID", "type": "string"}
+    ],
+    "name": "submitPromptWithCID",
+    "outputs": [{"name": "", "type": "uint256"}],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "name": "jobId", "type": "uint256"},
+      {"indexed": true, "name": "controller", "type": "address"},
+      {"name": "promptCID", "type": "string"},
+      {"name": "modelId", "type": "string"},
+      {"name": "modelCID", "type": "string"},
+      {"name": "payment", "type": "uint256"}
+    ],
+    "name": "InferenceRequested",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "name": "jobId", "type": "uint256"},
+      {"indexed": true, "name": "worker", "type": "address"},
+      {"name": "responseCID", "type": "string"}
+    ],
+    "name": "InferenceCompleted",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {"name": "jobId", "type": "uint256"},
+      {"name": "responseCID", "type": "string"}
+    ],
+    "name": "submitInferenceResult",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]
