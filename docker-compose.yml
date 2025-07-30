@@ -168,4 +168,4 @@ volumes:
 
 networks:
   default:
-    name: decentralized-vllm-network
+    name: decentralized-tensor-network

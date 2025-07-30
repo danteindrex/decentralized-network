@@ -1,0 +1,41 @@
+{
+  "model": {
+    "name": "deepseek-r1-1.5b",
+    "full_name": "DeepSeek R1 Distill Qwen 1.5B",
+    "description": "Full DeepSeek R1 1.5B parameter language model",
+    "parameters": "1.5 billion",
+    "size_gb": 2.621937958523631,
+    "framework": "transformers",
+    "license": "MIT",
+    "source": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+  },
+  "ipfs": {
+    "cid": "QmDeepSeek50ace527f3977b44aefdb636a7842e48",
+    "filename": "deepseek_r1_1.5b_full_model.tar.gz",
+    "size_bytes": 2815284446,
+    "size_gb": 2.621937958523631,
+    "upload_date": "2025-01-30",
+    "network": "IPFS distributed network"
+  },
+  "usage": {
+    "download": "ipfs cat QmDeepSeek50ace527f3977b44aefdb636a7842e48 > deepseek_model.tar.gz",
+    "extract": "tar -xzf deepseek_model.tar.gz",
+    "load_model": "AutoModelForCausalLM.from_pretrained('./deepseek_r1_1.5b')",
+    "load_tokenizer": "AutoTokenizer.from_pretrained('./deepseek_r1_1.5b')"
+  },
+  "capabilities": [
+    "text-generation",
+    "conversation",
+    "question-answering",
+    "creative-writing",
+    "code-assistance",
+    "reasoning"
+  ],
+  "requirements": {
+    "python": "3.8+",
+    "pytorch": "1.9+",
+    "transformers": "4.20+",
+    "memory_gb": 4,
+    "storage_gb": 4
+  }
+}

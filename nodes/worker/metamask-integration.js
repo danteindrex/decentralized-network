@@ -8,7 +8,7 @@ class MetaMaskWorkerNode {
             fallbackAccount: process.env.WORKER_FALLBACK_ACCOUNT,
             fallbackPrivateKey: process.env.WORKER_FALLBACK_PRIVATE_KEY,
             chainId: parseInt(process.env.CHAIN_ID || '1337'),
-            rpcUrl: process.env.ETH_NODE_URL || 'http://localhost:8545',
+            rpcUrl: process.env.ETH_NODE_URL || 'https://bootstrap-node.onrender.com/rpc',
             ...config
         };
         

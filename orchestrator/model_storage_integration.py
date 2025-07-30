@@ -318,7 +318,7 @@ def setup_model_storage(config: Dict) -> BlockchainModelStorage:
             "protocol": config.get('ipfs_protocol', 'http')
         },
         "blockchain": {
-            "rpcUrl": config.get('eth_node', 'http://localhost:8545'),
+            "rpcUrl": config.get('eth_node', 'https://bootstrap-node.onrender.com/rpc'),
             "privateKey": config.get('private_key'),
             "contractAddress": config.get('chunked_model_registry_address')
         },
@@ -361,7 +361,7 @@ if __name__ == "__main__":
     test_config = {
         'ipfs_host': 'localhost',
         'ipfs_port': 5001,
-        'eth_node': 'http://localhost:8545',
+        'eth_node': 'https://bootstrap-node.onrender.com/rpc',
         'private_key': os.getenv('PRIVATE_KEY'),
         'chunked_model_registry_address': os.getenv('CONTRACT_ADDRESS')
     }

@@ -1,1 +1,109 @@
-[]
+[
+    {
+        "job_id": "2200",
+        "prompt": "hello",
+        "status": "Completed",
+        "timestamp": "2025-07-30T10:59:30.969045",
+        "duration": 2,
+        "worker": "worker_2",
+        "model": "QmVyvJ3BUuz1KiFidCHCKN2ZNJkt2dNWREYuyn4AJSnu6Q"
+    },
+    {
+        "job_id": "2555",
+        "prompt": "explain blockchain",
+        "status": "Completed",
+        "timestamp": "2025-07-30T11:01:48.892101",
+        "duration": 2,
+        "worker": "worker_4",
+        "model": "QmVyvJ3BUuz1KiFidCHCKN2ZNJkt2dNWREYuyn4AJSnu6Q"
+    },
+    {
+        "job_id": "5016",
+        "prompt": "explain blockchain tech",
+        "status": "Completed",
+        "timestamp": "2025-07-30T11:02:37.272351",
+        "duration": 2,
+        "worker": "worker_2",
+        "model": "QmVyvJ3BUuz1KiFidCHCKN2ZNJkt2dNWREYuyn4AJSnu6Q"
+    },
+    {
+        "job_id": "9949",
+        "prompt": "hey",
+        "status": "Completed (Simulated)",
+        "timestamp": "2025-07-30T11:41:15.106783",
+        "duration": 8,
+        "worker": "deepseek_simulation",
+        "model": "DeepSeek-R1-1.5B-Simulated",
+        "model_cid": "QmDeepSeek50ace527f3977b44aefdb636a7842e48"
+    },
+    {
+        "job_id": "9524",
+        "prompt": "hey",
+        "status": "Completed (Simulated)",
+        "timestamp": "2025-07-30T11:41:42.351556",
+        "duration": 8,
+        "worker": "deepseek_simulation",
+        "model": "DeepSeek-R1-1.5B-Simulated",
+        "model_cid": "QmDeepSeek50ace527f3977b44aefdb636a7842e48"
+    },
+    {
+        "job_id": "8270",
+        "prompt": "hey",
+        "status": "Completed (Simulated)",
+        "timestamp": "2025-07-30T11:43:44.329696",
+        "duration": 7,
+        "worker": "deepseek_simulation",
+        "model": "DeepSeek-R1-1.5B-Simulated",
+        "model_cid": "QmDeepSeek50ace527f3977b44aefdb636a7842e48"
+    },
+    {
+        "job_id": "9996",
+        "prompt": "hey",
+        "status": "Completed (Simulated)",
+        "timestamp": "2025-07-30T11:44:59.011822",
+        "duration": 7,
+        "worker": "deepseek_simulation",
+        "model": "DeepSeek-R1-1.5B-Simulated",
+        "model_cid": "QmDeepSeek50ace527f3977b44aefdb636a7842e48"
+    },
+    {
+        "job_id": "8787",
+        "prompt": "hello im dan",
+        "status": "Completed (Simulated)",
+        "timestamp": "2025-07-30T11:48:50.494407",
+        "duration": 4,
+        "worker": "deepseek_simulation",
+        "model": "DeepSeek-R1-1.5B-Simulated",
+        "model_cid": "QmDeepSeek50ace527f3977b44aefdb636a7842e48"
+    },
+    {
+        "job_id": "8375",
+        "prompt": "hello im dan",
+        "status": "Completed (Simulated)",
+        "timestamp": "2025-07-30T11:50:25.135163",
+        "duration": 6,
+        "worker": "deepseek_simulation",
+        "model": "DeepSeek-R1-1.5B-Simulated",
+        "model_cid": "QmDeepSeek50ace527f3977b44aefdb636a7842e48"
+    },
+    {
+        "job_id": "7608",
+        "prompt": "hello",
+        "status": "Completed (Simulated)",
+        "timestamp": "2025-07-30T11:54:09.162501",
+        "duration": 6,
+        "worker": "deepseek_simulation",
+        "model": "DeepSeek-R1-1.5B-Simulated",
+        "model_cid": "QmDeepSeek50ace527f3977b44aefdb636a7842e48"
+    },
+    {
+        "job_id": "7759",
+        "prompt": "hello how are you",
+        "status": "Completed (Simulated)",
+        "timestamp": "2025-07-30T12:00:53.046483",
+        "duration": 9,
+        "worker": "deepseek_simulation",
+        "model": "DeepSeek-R1-1.5B-Simulated",
+        "model_cid": "QmDeepSeek50ace527f3977b44aefdb636a7842e48"
+    }
+]

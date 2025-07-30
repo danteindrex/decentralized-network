@@ -28,6 +28,9 @@ COPY genesis.json ./
 # Create data directory
 RUN mkdir -p /app/data
 
+# Expose ports
+EXPOSE 8080 8545 8546 30303
+
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1

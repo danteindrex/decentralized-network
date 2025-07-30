@@ -64,10 +64,13 @@ class WorkerNode {
             metricsPort: this.config.metricsPort || 9091
         });
         
-        // Initialize network discovery
+        // Initialize network discovery with bootstrap RPC endpoint
+        const bootstrapRpcUrl = 'https://bootstrap-node.onrender.com/rpc';
         this.networkDiscovery = new NetworkDiscovery({
             nodeId: this.nodeId,
             nodeType: 'worker',
+            ethNodeUrl: bootstrapRpcUrl,
+            endpoint: `localhost:${this.config.port}`,
             port: this.config.port,
             bootstrapNodes: this.config.bootstrapNodes
         });
@@ -404,11 +407,11 @@ class WorkerNode {
         // Register blockchain health check
         this.healthMonitor.registerService('blockchain', async () => {
             try {
-                // Check if we can connect to blockchain
-                const Web3 = require('web3');
-                const web3 = new Web3(`http://localhost:${this.config.rpcPort}`);
-                const isConnected = web3.isConnected ? web3.isConnected() : await web3.eth.net.isListening();
-                return { healthy: isConnected };
+                // Check if we can connect to blockchain via bootstrap RPC proxy
+                const { Web3 } = require('web3');
+                const web3 = new Web3('https://bootstrap-node.onrender.com/rpc');
+                const isListening = await web3.eth.net.isListening();
+                return { healthy: isListening };
             } catch (err) {
                 return { healthy: false, error: err.message };
             }
@@ -572,7 +575,7 @@ class WorkerNode {
                 stdio: 'inherit',
                 processType: 'ai-inference',
                 env: {
-                    ETH_NODE: `http://localhost:${this.config.rpcPort}`,
+                    ETH_NODE: 'https://bootstrap-node.onrender.com/rpc',
                     NODE_TYPE: 'worker',
                     NODE_ID: this.nodeId,
                     // Resource allocation environment variables are set automatically by ResourceManager

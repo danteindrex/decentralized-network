@@ -1,0 +1,39 @@
+{
+  "name": "deepseek-r1-1.5b",
+  "full_name": "DeepSeek R1 Distill Qwen 1.5B",
+  "description": "DeepSeek R1 1.5B parameter language model for conversational AI",
+  "type": "causal-lm",
+  "framework": "transformers",
+  "parameters": "1.5B",
+  "size_gb": 3.4,
+  "source": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+  "created_at": "2025-01-30",
+  "license": "MIT",
+  "usage": {
+    "load_model": "AutoModelForCausalLM.from_pretrained(model_path)",
+    "load_tokenizer": "AutoTokenizer.from_pretrained(model_path)",
+    "generate": "model.generate(inputs, max_length=100, temperature=0.7)"
+  },
+  "capabilities": [
+    "text-generation",
+    "conversation",
+    "question-answering",
+    "creative-writing"
+  ],
+  "ipfs_info": {
+    "upload_date": "2025-01-30",
+    "file_structure": "tar.gz archive",
+    "verification": "sha256 checksum included"
+  },
+  "package_info": {
+    "files": [
+      "config.json",
+      "generation_config.json",
+      "tokenizer_config.json",
+      "tokenizer.json",
+      "model.safetensors"
+    ],
+    "total_size_mb": 3396.272861480713,
+    "compression": "none"
+  }
+}

@@ -141,5 +141,6 @@ stop_tokens: null
 temperature: 0.7
 top_p: 0.9
 trust_remote_code: true
-vllm_base_url: http://localhost:8000/v1
-vllm_port: 8000
+# vLLM removed - using unified tensor parallelism
+tensor_parallelism_enabled: true
+tensor_endpoint: http://localhost:8080/tensor

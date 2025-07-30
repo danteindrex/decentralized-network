@@ -1,6 +1,5 @@
-# Existing requirements
+# Core requirements (vLLM removed - using unified tensor parallelism)
 torch
-vllm
 ray
 web3
 ipfshttpclient

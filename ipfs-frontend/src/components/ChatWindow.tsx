@@ -29,7 +29,7 @@ export function ChatWindow({ onShowStorage }: ChatWindowProps) {
     {
       id: "welcome",
       content:
-        "Hello! I'm your AI-powered assistant for the decentralized network. I can help you with:\n\n• 🧠 AI inference requests\n• 📁 IPFS file management\n• 💰 Payment processing\n• 📊 Network status monitoring\n• 🔧 MCP tool integrations\n\nWhat would you like to do today?",
+        "Hello! I'm your tensor parallelism AI assistant for the decentralized network. I can help you with:\n\n• 🧠 **FREE AI inference** - completely free processing!\n• 📁 IPFS file management  \n• 📊 Network status monitoring\n• 📱 **Mobile-first processing** - your phone contributes!\n• ⚡ **Tensor parallelism** - models distributed across devices\n\n🆓 **All AI inference is FREE!** What would you like to process today?",
       sender: "assistant",
       timestamp: new Date(),
     },

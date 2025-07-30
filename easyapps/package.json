@@ -1,8 +1,8 @@
 {
   "name": "ai-network-node",
   "version": "1.0.0",
-  "description": "Decentralized AI Network - Universal Node Application",
-  "main": "src/main.js",
+    "description": "Decentralized AI Network - Universal Node Application",
+  "main": "src/main.cjs",
   "scripts": {
     "start": "npm run build && electron .",
     "build": "babel src -d build && cp src/index.html build/index.html && cp -r assets build/assets",
@@ -63,6 +63,8 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-node": "^4.22.0",
     "axios": "^1.5.0",
     "form-data": "^4.0.0",
     "ipfs-http-client": "^60.0.1",

@@ -98,9 +98,9 @@ export function Dashboard({ className }: DashboardProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Network Dashboard</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Tensor Parallelism Dashboard</h1>
           <p className="text-gray-600">
-            Monitor your decentralized AI network status and performance
+            Monitor your decentralized tensor parallelism network - free AI for everyone! 🆓
           </p>
         </div>
         <div className="text-right">
@@ -178,12 +178,12 @@ export function Dashboard({ className }: DashboardProps) {
           </CardContent>
         </Card>
 
-        {/* Active Workers */}
+        {/* Tensor Devices */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center text-sm font-medium">
               <Users className="w-4 h-4 mr-2" />
-              Workers
+              Tensor Devices
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -194,20 +194,20 @@ export function Dashboard({ className }: DashboardProps) {
                 </span>
                 <TrendingUp className="w-5 h-5 text-blue-500" />
               </div>
-              <p className="text-xs text-gray-600">Active Nodes</p>
-              <div className="text-xs text-gray-500">
-                +{Math.floor(Math.random() * 3)} from yesterday
+              <p className="text-xs text-gray-600">Phones, Laptops, Servers</p>
+              <div className="text-xs text-green-600">
+                📱 Mobile-first tensor processing
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Total Jobs */}
+        {/* Free Inference Jobs */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center text-sm font-medium">
               <Zap className="w-4 h-4 mr-2" />
-              Jobs
+              Free Jobs
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -219,8 +219,8 @@ export function Dashboard({ className }: DashboardProps) {
                 <Activity className="w-5 h-5 text-purple-500" />
               </div>
               <p className="text-xs text-gray-600">Total Processed</p>
-              <div className="text-xs text-gray-500">
-                {networkStats?.totalJobs || 0} this session
+              <div className="text-xs text-green-600">
+                🆓 All inference completely FREE!
               </div>
             </div>
           </CardContent>

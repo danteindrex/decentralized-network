@@ -14,7 +14,7 @@ import logging
 
 # Configuration
 CONFIG = {
-    'eth_node': 'http://192.168.1.103:8545',
+    'eth_node': 'https://bootstrap-node.onrender.com/rpc',
     'ipfs_host': '192.168.1.103',
     'ipfs_port': 5001,
     'bootstrap_url': 'https://bootstrap-node.onrender.com',

@@ -1,0 +1,12 @@
+{
+  "name": "deepseek-r1-1.5b",
+  "description": "DeepSeek R1 1.5B parameter language model",
+  "type": "causal-lm",
+  "framework": "transformers",
+  "size": "1.5B parameters",
+  "created_at": "2025-01-30",
+  "usage": {
+    "load": "AutoModelForCausalLM.from_pretrained(model_path)",
+    "tokenizer": "AutoTokenizer.from_pretrained(model_path)"
+  }
+}

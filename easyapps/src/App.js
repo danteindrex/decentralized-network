@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { initWeb3, uploadToIpfs, fetchFromIpfs, submitInferenceJob, monitorJobCompletion, setConfig, formatFileSize, getMockStorageInfo, getMockFiles, runInference } from './shared-core';
+const React = require('react');
+const { useState, useEffect, useCallback } = React;
+const { ipcRenderer } = require('electron');
+const { initWeb3, uploadToIpfs, fetchFromIpfs, submitInferenceJob, monitorJobCompletion, setConfig, formatFileSize, getMockStorageInfo, getMockFiles, runInference, getNetworkStats, getDiscoveredPeers, saveChatMessageToIpfs, loadChatMessagesFromIpfs, getUserChatStats } = require('./shared-core');
 
 const App = () => {
     const [activeTab, setActiveTab] = useState('chat');
@@ -23,6 +25,8 @@ const App = () => {
     const [selectedNodeType, setSelectedNodeType] = useState('worker');
     const [nodeStatus, setNodeStatus] = useState({ running: false, nodeType: null });
     const [nodeOutput, setNodeOutput] = useState([]);
+    const [networkStats, setNetworkStats] = useState(null);
+    const [discoveredPeers, setDiscoveredPeers] = useState([]);
 
     // File upload states
     const [selectedFile, setSelectedFile] = useState(null);
@@ -75,18 +79,24 @@ const App = () => {
                         // Show welcome message
                         setChatHistory([{
                             role: 'assistant',
-                            content: `🎉 Welcome to the Decentralized AI Network! 
+                            content: `🎉 Welcome to the Tensor Parallelism Network! 
 
-I've automatically generated a new wallet for you:
-• Address: ${autoConfig.default_account}
+✅ **Auto-Configuration Complete:**
+• Wallet: ${autoConfig.default_account.substring(0, 8)}...
 • Network: ${autoConfig.network_id}
+• Bootstrap: ${autoConfig.eth_node}
+• IPFS: ${autoConfig.ipfs_host}:${autoConfig.ipfs_port}
 
-⚠️ **Important**: Your wallet currently has 0 ETH. To use AI inference, you'll need some ETH for gas fees. You can:
-1. Get test ETH from a faucet if on testnet
-2. Transfer ETH from another wallet
-3. Join as a worker node to earn ETH
+🧠 **Tensor Parallelism Active:**
+Your device joins with phones, laptops & servers for distributed AI processing!
 
-Your configuration has been saved. You can view it in the Settings tab.`,
+💡 **Try these commands:**
+• "run inference: What is quantum computing?"
+• "help" - See all available commands
+• "upload a file" - Store files on IPFS
+
+🆓 **FREE AI Processing!** All inference is completely free thanks to tensor parallelism!
+📱 **Mobile-First:** Your phone contributes to large model processing!`,
                             timestamp: new Date()
                         }]);
                     }
@@ -97,21 +107,38 @@ Your configuration has been saved. You can view it in the Settings tab.`,
         // Initial network status check (will run after config is loaded due to dependency)
         checkNetworkStatus();
 
-        // Load chat history from IPFS
-        ipcRenderer.invoke('load-chat-messages').then(messages => {
-            if (messages) {
-                setChatHistory(messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)));
-            } else {
-                // Initial chat message if no history
+        // Load user-specific chat history from IPFS
+        const loadUserChatHistory = async () => {
+            try {
+                if (config.default_account && config.default_account !== '0xYourDefaultAccountAddress') {
+                    const messages = await loadChatMessagesFromIpfs(config.default_account);
+                    if (messages && Array.isArray(messages) && messages.length > 0) {
+                        setChatHistory(messages);
+                        return;
+                    }
+                }
+                
+                // Initial chat message if no history or no user account
                 setChatHistory([
                     {
                         role: 'assistant',
-                        content: 'Hello! I\'m your IPFS and AI assistant. I can help you upload files, run AI inference, and manage your decentralized storage. What would you like to do today?',
+                        content: `Hello! I'm your tensor parallelism AI assistant for the decentralized network.${config.default_account ? ` Your address: ${config.default_account.substring(0, 8)}...` : ''}\n\n• 🧠 **FREE AI inference** - completely free processing!\n• 📁 IPFS file management with CID tracking\n• 📊 Network status monitoring\n• 📱 **Mobile-first processing** - your phone contributes!\n• ⚡ **Tensor parallelism** - models distributed across devices\n\n🆓 **All AI inference is FREE!** Your message history is stored on IPFS with unique CIDs.`,
+                        timestamp: new Date()
+                    }
+                ]);
+            } catch (error) {
+                console.error('Failed to load user chat messages:', error);
+                setChatHistory([
+                    {
+                        role: 'assistant',
+                        content: 'Hello! I\'m your tensor parallelism AI assistant. Please configure your wallet to enable message history tracking.',
                         timestamp: new Date()
                     }
                 ]);
             }
-        });
+        };
+        
+        loadUserChatHistory();
 
         // Update storage info and files (mock for now)
         setStorageInfo(getMockStorageInfo());
@@ -162,14 +189,18 @@ Your configuration has been saved. You can view it in the Settings tab.`,
         setChatHistory(prev => [...prev, newUserMessage]);
         setUserInput('');
 
-        // Save user message to IPFS
-        const messageCid = await ipcRenderer.invoke('save-chat-message', newUserMessage);
-        if (messageCid) {
-            console.log("Chat message saved to IPFS with CID:", messageCid);
-            // Update the message with its CID for display in storage tab
-            setChatHistory(prev => prev.map(msg => msg === newUserMessage ? { ...msg, cid: messageCid } : msg));
-        } else {
-            console.error("Failed to save chat message to IPFS.");
+        // Save user message to IPFS with user address tracking
+        try {
+            const messageCid = await saveChatMessageToIpfs(newUserMessage, config.default_account);
+            if (messageCid) {
+                console.log(`Chat message saved to IPFS with CID: ${messageCid} for user: ${config.default_account}`);
+                // Update the message with its CID for display in storage tab
+                setChatHistory(prev => prev.map(msg => msg === newUserMessage ? { ...msg, cid: messageCid } : msg));
+            } else {
+                console.error("Failed to save chat message to IPFS.");
+            }
+        } catch (error) {
+            console.error("Error saving chat message:", error);
         }
 
         const response = await processChatRequest(userInput);
@@ -179,6 +210,18 @@ Your configuration has been saved. You can view it in the Settings tab.`,
             content: response,
             timestamp: new Date()
         };
+        
+        // Save assistant response to IPFS with user address tracking
+        try {
+            const responseCid = await saveChatMessageToIpfs(assistantResponse, config.default_account);
+            if (responseCid) {
+                console.log(`Assistant response saved to IPFS with CID: ${responseCid}`);
+                assistantResponse.cid = responseCid;
+            }
+        } catch (error) {
+            console.error("Error saving assistant response:", error);
+        }
+        
         setChatHistory(prev => [...prev, assistantResponse]);
     };
 
@@ -195,26 +238,44 @@ Your configuration has been saved. You can view it in the Settings tab.`,
                 return "Please configure your account and private key in settings to run inference.";
             }
 
-            const result = await runInference(prompt, account, privateKey);
-            if (result.success) {
-                return `🎉 **Inference Complete!**\n\n**Response:** ${result.response}\n\n*Job ID: ${result.jobId}*`;
-            }
-            else {
-                return `❌ ${result.message}`;
+            try {
+                const result = await runInference(prompt, account, privateKey);
+                return `🎉 **Tensor Parallel Inference Complete!**\n\n**Response:** ${result.response}\n\n*Job ID: ${result.jobId} • Worker: ${result.worker} • Cost: FREE 🆓*`;
+            } catch (error) {
+                return `❌ Tensor parallelism inference failed: ${error.message}\n\nPlease check your network configuration and wallet setup.`;
             }
         }
         else if (inputLower.includes('upload') || inputLower.includes('file')) {
             return "I can help you upload files! Please use the Storage tab to upload files to IPFS.";
         }
-        else if (inputLower.includes('storage') || inputLower.includes('stats')) {
-            const info = getMockStorageInfo(); // Use actual storage info later
-            return `📊 Storage Stats:\n• Used: ${formatFileSize(info.used_space)}\n• Available: ${formatFileSize(info.available_space)}\n• Files: ${info.file_count}\n• Usage: ${(info.used_space / info.total_space * 100).toFixed(1)}%`;
+        else if (inputLower.includes('storage') || inputLower.includes('stats') || inputLower.includes('history')) {
+            try {
+                const userStats = await getUserChatStats(config.default_account);
+                const storageInfo = getMockStorageInfo();
+                
+                return `📊 **Your Tensor Parallelism Stats:**\n\n**Chat History:**\n• Address: ${userStats?.userAddress?.substring(0, 8)}...\n• Total Messages: ${userStats?.totalMessages || 0}\n• Inference Jobs: ${userStats?.totalInferenceJobs || 0}\n• First Message: ${userStats?.firstMessageDate ? new Date(userStats.firstMessageDate).toLocaleDateString() : 'None'}\n\n**IPFS Storage:**\n• Used: ${formatFileSize(storageInfo.used_space)}\n• Available: ${formatFileSize(storageInfo.available_space)}\n• Files: ${storageInfo.file_count}\n• Message Storage: ${formatFileSize(userStats?.storageUsed || 0)}`;
+            } catch (error) {
+                return `❌ Error loading stats: ${error.message}`;
+            }
         }
         else if (inputLower.includes('help')) {
-            return `🤖 I can help you with:\n\n• **AI Inference**: Say "run inference on: [your prompt]" to get AI responses\n• **File Management**: Upload, download, and manage files on IPFS\n• **Storage Stats**: Check your storage usage and file information\n• **Network Status**: Monitor blockchain and IPFS connectivity\n\nTry asking me something like:\n- "run inference on: Explain quantum computing"\n- "show my storage stats"\n- "upload a file"`;
+            return `🤖 **Tensor Parallelism AI Assistant Help:**\n\n• **FREE AI Inference**: Say "run inference on: [your prompt]" - completely free!\n• **File Management**: Upload, download, and manage files on IPFS\n• **Storage Stats**: Check your storage usage and file information\n• **Network Status**: Monitor blockchain and IPFS connectivity\n\nTry asking me something like:\n- "run inference on: Explain quantum computing"\n- "show my storage stats"\n- "upload a file"\n\n🆓 **FREE Processing:** All AI inference is completely free!\n📱 **Mobile-First:** Your phone contributes to large model processing!\n⚡ **Tensor Parallelism:** Models distributed across multiple devices!`;
         }
         else {
-            return `I understand you said: '${input}'. I can help with AI inference, file management, and storage. Type 'help' to see what I can do!`;
+            // For general conversation, try to run inference on the input
+            const account = config.default_account;
+            const privateKey = config.private_key;
+
+            if (!account || !privateKey || account === '0xYourDefaultAccountAddress') {
+                return `I understand you said: '${input}'. To enable AI conversation, please configure your wallet in the Settings tab.`;
+            }
+
+            try {
+                const result = await runInference(input, account, privateKey);
+                return `🧠 **Tensor Parallelism Response:**\n\n${result.response}\n\n*Job ID: ${result.jobId} • Worker: ${result.worker} • Cost: FREE 🆓*`;
+            } catch (error) {
+                return `❌ I couldn't process that through tensor parallelism: ${error.message}\n\nTry 'help' to see available commands.`;
+            }
         }
     };
 
@@ -520,4 +581,4 @@ Your configuration has been saved. You can view it in the Settings tab.`,
     );
 };
 
-export default App;
+module.exports = { default: App };

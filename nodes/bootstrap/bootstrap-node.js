@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Bootstrap/Rendez-vous Node with Peer Discovery
+ * Bootstrap/Rendez-vous Node with Real Peer Discovery
  * - Network coordinator and peer discovery hub
  * - Must have static IP + port 30303 open
  * - Runs full node with mining
@@ -70,7 +70,7 @@ class BootstrapNode {
     }
 
     async start() {
-        console.log('🚀 Starting Bootstrap Node...');
+        console.log('🚀 Starting Bootstrap Node with Real Peer Discovery...');
         console.log(`📍 Static IP: ${this.config.staticIP}`);
         console.log(`🔗 Enode: ${this.enode}`);
         console.log(`⛓️  Chain ID: ${this.config.chainId}`);
@@ -170,20 +170,21 @@ class BootstrapNode {
     }
 
     async startPeerDiscovery() {
-        console.log('🔍 Starting peer discovery service...');
+        console.log('🔍 Starting real peer discovery service...');
         
         const discoveryConfig = {
             nodeType: 'bootstrap',
             ethNodeUrl: `http://localhost:${this.config.rpcPort}`,
             endpoint: `${this.config.staticIP}:8080`,
-            version: '1.0.0'
+            version: '1.0.0',
+            enableLocalScanning: true // Enable local network scanning for development
         };
 
         this.networkDiscovery = new NetworkDiscovery(discoveryConfig);
         
         // Listen for peer events
         this.networkDiscovery.on('peerDiscovered', (peer) => {
-            console.log(`🤝 New peer discovered: ${peer.type} at ${peer.endpoint}`);
+            console.log(`🤝 Real peer discovered: ${peer.type} at ${peer.endpoint} (via ${peer.discoveryMethod})`);
             this.peers.set(peer.id || peer.endpoint, peer);
         });
 
@@ -193,7 +194,7 @@ class BootstrapNode {
         });
 
         await this.networkDiscovery.start();
-        console.log('✅ Peer discovery service started');
+        console.log('✅ Real peer discovery service started');
     }
 
     async startAPIServer() {
@@ -205,6 +206,9 @@ class BootstrapNode {
 
         // Network info endpoint
         app.get('/network/info', (req, res) => {
+            const realPeers = this.networkDiscovery ? this.networkDiscovery.getRealPeers() : [];
+            const registeredPeers = this.networkDiscovery ? this.networkDiscovery.getRegisteredPeers() : [];
+            
             res.json({
                 enode: this.enode,
                 staticIP: this.config.staticIP,
@@ -213,6 +217,8 @@ class BootstrapNode {
                 rpcEndpoint: `http://${this.config.staticIP}:${this.config.rpcPort}`,
                 wsEndpoint: `ws://${this.config.staticIP}:${this.config.wsPort}`,
                 peerCount: this.peers.size,
+                realPeerCount: realPeers.length,
+                registeredPeerCount: registeredPeers.length,
                 uptime: process.uptime()
             });
         });
@@ -226,13 +232,20 @@ class BootstrapNode {
                 contracts = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
             }
             
-            // Get list of known bootstrap nodes
+            // Get list of known bootstrap nodes (including real discovered ones)
+            // For Render deployment, use the public URL with RPC proxy
+            const publicUrl = process.env.RENDER_EXTERNAL_URL || `http://${this.config.staticIP}:8080`;
             const bootstrapNodes = [
-                { url: `http://${this.config.staticIP}:${this.config.rpcPort}`, ipfs: `${this.config.staticIP}:5001` }
+                { 
+                    url: `${publicUrl}/rpc`, 
+                    ipfs: `${this.config.staticIP}:5001`,
+                    isProxy: true 
+                }
             ];
             
-            // Add other known bootstrap nodes from peers
-            for (const [id, peer] of this.peers.entries()) {
+            // Add other known bootstrap nodes from real peers
+            const realPeers = this.networkDiscovery ? this.networkDiscovery.getRealPeers() : [];
+            for (const peer of realPeers) {
                 if (peer.type === 'bootstrap' && peer.endpoint) {
                     const [host, port] = peer.endpoint.split(':');
                     bootstrapNodes.push({
@@ -254,7 +267,7 @@ class BootstrapNode {
             });
         });
 
-        // Get all peers
+        // Get all peers (including real and registered)
         app.get('/peers', (req, res) => {
             const { type } = req.query;
             let peers = Array.from(this.peers.values());
@@ -263,10 +276,21 @@ class BootstrapNode {
                 peers = peers.filter(p => p.type === type);
             }
             
+            // Add discovery method info
+            const realPeers = this.networkDiscovery ? this.networkDiscovery.getRealPeers() : [];
+            const registeredPeers = this.networkDiscovery ? this.networkDiscovery.getRegisteredPeers() : [];
+            
             res.json({
                 peers,
                 count: peers.length,
-                totalPeers: this.peers.size
+                totalPeers: this.peers.size,
+                realPeers: realPeers.length,
+                registeredPeers: registeredPeers.length,
+                discoveryMethods: {
+                    gethConnections: realPeers.filter(p => p.discoveryMethod === 'geth-connection').length,
+                    localScan: realPeers.filter(p => p.discoveryMethod === 'local-scan').length,
+                    registration: registeredPeers.length
+                }
             });
         });
 
@@ -281,7 +305,7 @@ class BootstrapNode {
             });
         });
 
-        // Register new peer
+        // Register new peer (enhanced with real peer discovery)
         app.post('/peers/register', (req, res) => {
             const { nodeId, nodeType, endpoint, capabilities } = req.body;
             
@@ -289,22 +313,27 @@ class BootstrapNode {
                 return res.status(400).json({ error: 'Missing required fields' });
             }
 
-            const peerInfo = {
+            // Use the network discovery service to register the peer
+            const peerInfo = this.networkDiscovery.registerPeer({
                 id: nodeId,
-                type: nodeType,
+                nodeType,
                 endpoint,
                 capabilities,
-                registeredAt: Date.now(),
-                status: 'registered'
-            };
+                version: req.body.version || '1.0.0'
+            });
 
+            // Also add to our local peers map
             this.peers.set(nodeId, peerInfo);
-            console.log(`📝 New peer registered: ${nodeType} at ${endpoint}`);
             
             res.json({ 
                 success: true, 
                 message: 'Peer registered successfully',
-                peerInfo 
+                peerInfo,
+                bootstrapInfo: {
+                    enode: this.enode,
+                    rpcEndpoint: `http://${this.config.staticIP}:${this.config.rpcPort}`,
+                    networkId: this.config.networkId
+                }
             });
         });
 
@@ -344,13 +373,54 @@ class BootstrapNode {
 
         // Health check
         app.get('/health', (req, res) => {
+            const realPeers = this.networkDiscovery ? this.networkDiscovery.getRealPeers() : [];
+            
             res.json({ 
                 status: 'healthy',
                 nodeType: 'bootstrap',
                 uptime: process.uptime(),
                 peers: this.peers.size,
+                realPeers: realPeers.length,
                 timestamp: Date.now()
             });
+        });
+
+        // Debug endpoint to see discovery details
+        app.get('/debug/discovery', (req, res) => {
+            if (!this.networkDiscovery) {
+                return res.json({ error: 'Network discovery not initialized' });
+            }
+            
+            res.json({
+                realPeers: this.networkDiscovery.getRealPeers(),
+                registeredPeers: this.networkDiscovery.getRegisteredPeers(),
+                allPeers: this.networkDiscovery.getPeers(),
+                healthyWorkers: this.networkDiscovery.getHealthyWorkers()
+            });
+        });
+
+        // RPC Proxy endpoint - Forward RPC calls to local geth
+        app.post('/rpc', async (req, res) => {
+            try {
+                const axios = require('axios');
+                const response = await axios.post(`http://localhost:8545`, req.body, {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 30000
+                });
+                res.json(response.data);
+            } catch (error) {
+                console.error('RPC Proxy Error:', error.message);
+                res.status(500).json({
+                    jsonrpc: "2.0",
+                    error: {
+                        code: -32603,
+                        message: "Internal error: " + error.message
+                    },
+                    id: req.body.id || null
+                });
+            }
         });
 
         // Start server
@@ -358,6 +428,7 @@ class BootstrapNode {
         this.apiServer = app.listen(PORT, '0.0.0.0', () => {
             console.log(`✅ Bootstrap API server running on port ${PORT}`);
             console.log(`📡 Network endpoint: http://${this.config.staticIP}:${PORT}`);
+            console.log(`🔍 Real peer discovery enabled with local scanning`);
         });
     }
 }

@@ -10,7 +10,7 @@ import sys
 from web3 import Web3
 from threading import Thread
 # import ipfshttpclient  # Removed due to version compatibility
-from vllm import LLM, SamplingParams
+# Removed vLLM - using unified tensor parallelism for all models
 import ray
 from model_cache import get_cached_model, cache_model, get_cache_stats
 
@@ -65,8 +65,8 @@ def load_config_with_fallbacks():
         logger.error("Invalid YAML configuration", error=e)
         sys.exit(1)
     
-    # Environment variable fallbacks
-    cfg['eth_node'] = os.getenv('ETH_NODE_URL', cfg.get('eth_node', 'http://localhost:8545'))
+    # Environment variable fallbacks - use ETH_NODE (not ETH_NODE_URL) for consistency
+    cfg['eth_node'] = os.getenv('ETH_NODE', os.getenv('ETH_NODE_URL', cfg.get('eth_node', 'https://bootstrap-node.onrender.com/rpc')))
     cfg['contract_address'] = os.getenv('CONTRACT_ADDRESS', cfg.get('contract_address'))
     cfg['model_registry_address'] = os.getenv('MODEL_REGISTRY_ADDRESS', cfg.get('model_registry_address'))
     cfg['default_account'] = os.getenv('DEFAULT_ACCOUNT', cfg.get('default_account'))
@@ -135,8 +135,8 @@ except Exception as e:
     logger.error("Failed to load smart contract", error=e, contract_address=cfg['contract_address'])
     sys.exit(1)
 
-MIN_RAM = cfg['min_free_ram']
-MIN_VRAM = cfg['min_free_vram']
+MIN_RAM = cfg['resources']['min_free_ram']
+MIN_VRAM = cfg['resources']['min_free_vram']
 
 # Resource detection
 def get_resources():
@@ -154,14 +154,20 @@ def start_ray_head():
 def join_ray(address):
     subprocess.run(['ray', 'start', '--address', f'127.0.0.1:{RAY_PORT}'])
 
-# IPFS client with circuit breaker
+# IPFS client with circuit breaker (using HTTP API)
 @with_circuit_breaker(failure_threshold=3, recovery_timeout=30)
 def get_ipfs_client():
     try:
-        client = ipfshttpclient.connect('/ip4/127.0.0.1/tcp/5001')
-        # Test connection
-        client.version()
-        return client
+        # Test IPFS HTTP API connection
+        ipfs_host = cfg.get('ipfs_host', '127.0.0.1')
+        ipfs_port = cfg.get('ipfs_port', 5001)
+        test_url = f"http://{ipfs_host}:{ipfs_port}/api/v0/version"
+        
+        response = requests.get(test_url, timeout=5)
+        if response.status_code == 200:
+            return f"http://{ipfs_host}:{ipfs_port}"
+        else:
+            raise Exception(f"IPFS API not responding: {response.status_code}")
     except Exception as e:
         ipfs_logger.error("Failed to connect to IPFS", error=e)
         raise
@@ -190,8 +196,8 @@ def download_from_ipfs_http(cid, output_path):
         print(f"Failed to download from IPFS: {e}")
         return False
 
-# Global vLLM model instance, MCP client, and blockchain storage
-vllm_model = None
+# Global tensor parallelism engine, MCP client, and blockchain storage
+tensor_inference_engine = None
 mcp_inference_engine = None
 blockchain_storage = None
 
@@ -205,61 +211,20 @@ if BLOCKCHAIN_STORAGE_AVAILABLE:
         blockchain_storage = None
 
 def load_local_model(model_path):
-    """Load model directly using vLLM Python API with caching"""
-    global vllm_model
-    
-    model_id = os.path.basename(model_path.rstrip('/'))
-    
-    try:
-        # Check cache first
-        cached_model = get_cached_model(model_id)
-        if cached_model:
-            logger.info("Using cached model", model_id=model_id, model_path=model_path)
-            vllm_model = cached_model
-            return True
-        
-        # Load new model
-        start_time = time.time()
-        logger.info("Loading model from path", model_path=model_path, model_id=model_id)
-        
-        # Configure vLLM for distributed inference
-        vllm_model = LLM(
-            model=model_path,
-            tensor_parallel_size=torch.cuda.device_count() if torch.cuda.is_available() else 1,
-            gpu_memory_utilization=cfg.get('gpu_memory_utilization', 0.8),
-            max_model_len=cfg.get('max_model_len', 2048),
-            enforce_eager=cfg.get('enforce_eager', False),
-            trust_remote_code=cfg.get('trust_remote_code', True)
-        )
-        
-        load_time = time.time() - start_time
-        
-        # Cache the model
-        if cache_model(model_id, vllm_model, model_path):
-            logger.model_loaded(model_path, load_time, cached=False, model_id=model_id)
-        else:
-            logger.warning("Failed to cache model", model_id=model_id, reason="memory_constraints")
-        
-        # Log cache statistics
-        cache_stats = get_cache_stats()
-        logger.info("Model cache status", **cache_stats)
-        
-        return True
-        
-    except Exception as e:
-        logger.error("Failed to load model", error=e, model_path=model_path, model_id=model_id)
-        return False
+    """DEPRECATED: vLLM model loading removed - using unified tensor parallelism"""
+    logger.info("vLLM model loading deprecated - using tensor parallelism instead", model_path=model_path)
+    print("⚠️ vLLM model loading deprecated - using unified tensor parallelism")
+    return True
 
 async def initialize_mcp_inference_engine():
     """Initialize MCP-enhanced inference engine"""
     global mcp_inference_engine
     try:
-        # Get vLLM server URL from config
-        vllm_base_url = cfg.get('vllm_base_url', 'http://localhost:8000/v1')
+        # Note: vLLM references removed - MCP now uses tensor parallelism
         model_name = cfg.get('model_name', 'default')
         
         mcp_inference_engine = MCPEnhancedInference(
-            vllm_base_url=vllm_base_url,
+            vllm_base_url=None,  # vLLM removed
             model_name=model_name
         )
         
@@ -272,13 +237,10 @@ async def initialize_mcp_inference_engine():
         return False
 
 def unload_model():
-    """Unload the vLLM model to free memory"""
-    global vllm_model, mcp_inference_engine
-    if vllm_model:
-        del vllm_model
-        vllm_model = None
-        torch.cuda.empty_cache() if torch.cuda.is_available() else None
-        print("Model unloaded")
+    """DEPRECATED: vLLM model unloading removed - using tensor parallelism"""
+    print("⚠️ vLLM model unloading deprecated - tensor parallelism handles memory")
+    torch.cuda.empty_cache() if torch.cuda.is_available() else None
+    print("Model unloaded")
     
     # Close MCP connections
     if mcp_inference_engine:
@@ -289,47 +251,45 @@ def unload_model():
         except Exception as e:
             print(f"Error closing MCP inference engine: {e}")
 
-def run_local_inference(prompt_text, job_id):
-    """Run inference directly with local vLLM model"""
-    global vllm_model
+async def run_tensor_parallel_inference(prompt_text, job_id, model_cid):
+    """Run inference using unified tensor parallelism system"""
+    global tensor_inference_engine
     
-    if not vllm_model:
-        print("No model loaded for inference")
+    if not tensor_inference_engine:
+        print("Tensor parallelism engine not initialized")
         return None
     
     try:
-        # Configure sampling parameters
-        sampling_params = SamplingParams(
-            temperature=cfg.get('temperature', 0.7),
-            top_p=cfg.get('top_p', 0.9),
+        print(f"Running tensor parallel inference for job {job_id}...")
+        
+        # Submit inference job to tensor parallelism system
+        response_text = await tensor_inference_engine.submit_inference_job(
+            model_id=model_cid,
+            user_address=cfg.get('default_account'),
+            prompt=prompt_text,
             max_tokens=cfg.get('max_tokens', 512),
-            stop=cfg.get('stop_tokens', None)
+            temperature=cfg.get('temperature', 0.7),
+            top_p=cfg.get('top_p', 0.9)
         )
         
-        # Run inference
-        print(f"Running local inference for job {job_id}...")
-        outputs = vllm_model.generate([prompt_text], sampling_params)
-        
-        # Extract response
-        if outputs and len(outputs) > 0:
-            response_text = outputs[0].outputs[0].text
-            print(f"Inference completed for job {job_id}")
+        if response_text:
+            print(f"Tensor parallel inference completed for job {job_id}")
             return response_text.strip()
         else:
-            print("No output generated")
+            print("No output generated from tensor parallelism")
             return None
             
     except Exception as e:
-        print(f"Local inference failed for job {job_id}: {e}")
+        print(f"Tensor parallel inference failed for job {job_id}: {e}")
         return None
 
-async def run_mcp_enhanced_inference(prompt_text, job_id):
-    """Run inference with MCP tool support"""
+async def run_mcp_enhanced_inference(prompt_text, job_id, model_cid):
+    """Run inference with MCP tool support using tensor parallelism"""
     global mcp_inference_engine
     
     if not mcp_inference_engine:
-        print("MCP inference engine not initialized, falling back to local inference")
-        return run_local_inference(prompt_text, job_id)
+        print("MCP inference engine not initialized, falling back to tensor parallel inference")
+        return await run_tensor_parallel_inference(prompt_text, job_id, model_cid)
     
     try:
         print(f"Running MCP-enhanced inference for job {job_id}...")
@@ -370,6 +330,34 @@ def validate_model_format(model_path):
     except Exception as e:
         print(f"Model validation error: {e}")
         return False
+
+def upload_to_ipfs_http(data, is_json=False):
+    """Upload data to IPFS using HTTP API"""
+    try:
+        ipfs_base_url = get_ipfs_client()
+        if not ipfs_base_url:
+            raise Exception("IPFS client not available")
+        
+        upload_url = f"{ipfs_base_url}/api/v0/add"
+        
+        if is_json:
+            # Upload JSON data
+            files = {'file': ('data.json', json.dumps(data), 'application/json')}
+        else:
+            # Upload text data
+            files = {'file': ('data.txt', data, 'text/plain')}
+        
+        response = requests.post(upload_url, files=files, timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            return result.get('Hash')
+        else:
+            raise Exception(f"IPFS upload failed: {response.status_code}")
+            
+    except Exception as e:
+        print(f"Failed to upload to IPFS: {e}")
+        return None
 
 def upload_response_to_ipfs(response_text, job_id):
     """Upload inference response to IPFS"""
@@ -419,23 +407,36 @@ def submit_response_to_contract(job_id, response_cid):
 def monitor_and_stop():
     while True:
         ram, cpu, vram = get_resources()
-        if ram < MIN_RAM or cpu > cfg['max_cpu'] or vram > MIN_VRAM:
+        if ram < MIN_RAM or cpu > cfg['resources']['max_cpu'] or vram > MIN_VRAM:
             subprocess.run(['ray', 'stop'])
             break
         time.sleep(5)
 
 @with_retry(max_retries=3, base_delay=2.0)
 def fetch_from_ipfs(cid, output_path):
-    """Fetch content from IPFS with retry logic"""
+    """Fetch content from IPFS with retry logic using HTTP API"""
     try:
-        ipfs_client = get_ipfs_client()
-        if not ipfs_client:
+        ipfs_base_url = get_ipfs_client()
+        if not ipfs_base_url:
             raise Exception("IPFS client not available")
             
         ipfs_logger.info("Fetching content from IPFS", cid=cid, output_path=output_path)
-        ipfs_client.get(cid, target=output_path)
-        ipfs_logger.info("Successfully fetched from IPFS", cid=cid)
-        return True
+        
+        # Use HTTP API to fetch content
+        fetch_url = f"{ipfs_base_url}/api/v0/get"
+        params = {'arg': cid}
+        response = requests.post(fetch_url, params=params, timeout=60, stream=True)
+        
+        if response.status_code == 200:
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            with open(output_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            ipfs_logger.info("Successfully fetched from IPFS", cid=cid)
+            return True
+        else:
+            raise Exception(f"IPFS fetch failed: {response.status_code}")
+            
     except Exception as e:
         ipfs_logger.error("Failed to fetch from IPFS", cid=cid, error=e)
         raise
@@ -547,19 +548,12 @@ async def handle_job_async(event):
                 print("MCP initialization failed, falling back to local inference")
                 use_mcp = False
         
-        # Load local model (for fallback or direct use)
-        print("Loading local model...")
-        if not load_local_model('./model'):
-            print("Failed to load local model")
-            return
+        # Note: vLLM model loading removed - using unified tensor parallelism
+        print("Unified tensor parallelism system ready (no local model loading needed)")
 
-        # Run inference (MCP-enhanced or local)
-        if use_mcp and mcp_inference_engine:
-            print(f"Running MCP-enhanced inference for job {job_id}...")
-            response_text = await run_mcp_enhanced_inference(prompt_text, job_id)
-        else:
-            print(f"Running local inference for job {job_id}...")
-            response_text = run_local_inference(prompt_text, job_id)
+        # Run inference using tensor parallelism (MCP removed for simplicity)
+        print(f"Running tensor parallel inference for job {job_id}...")
+        response_text = await run_tensor_parallel_inference(prompt_text, job_id, model_cid)
             
         if not response_text:
             print("Inference failed")
@@ -644,7 +638,7 @@ def listen():
 if __name__ == '__main__':
     resources = get_resources()
     logger.info(f"🎯 Using account: {cfg['default_account']}")
-    if resources[0] > cfg['head_min_ram'] and resources[2] > cfg['head_min_vram']:
+    if resources[0] > cfg['resources']['head_min_ram'] and resources[2] > cfg['resources']['head_min_vram']:
         listen()
     else:
         listen()

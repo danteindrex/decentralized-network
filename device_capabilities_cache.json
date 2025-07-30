@@ -1,0 +1,23 @@
+{
+  "test-device-1": {
+    "device_id": "test-device-1",
+    "device_type": "desktop",
+    "total_ram_gb": 125.30161666870117,
+    "available_ram_gb": 49.851558685302734,
+    "total_vram_gb": 23.5135498046875,
+    "available_vram_gb": 23.5135498046875,
+    "total_storage_gb": 937.6307716369629,
+    "available_storage_gb": 258.6815414428711,
+    "storage_type": "nvme",
+    "cpu_cores": 24,
+    "cpu_frequency_ghz": 3.569645854166666,
+    "cpu_name": "AMD Ryzen Threadripper 7960X 24-Cores",
+    "gpu_name": "NVIDIA GeForce RTX 4090",
+    "gpu_compute_capability": "8.9",
+    "network_bandwidth_mbps": 1000.0,
+    "network_latency_ms": 1.138925552368164,
+    "tensor_ops_per_sec": 16185.266840744503,
+    "memory_bandwidth_gbps": 179.12826156738663,
+    "matrix_mult_tflops": 49.74978875858046
+  }
+}

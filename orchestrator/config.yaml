@@ -10,9 +10,9 @@ development:
   debug: true
   mock_services: false
   test_mode: false
-eth_node: http://localhost:8545
-ipfs_gateway: http://192.168.1.103:8081
-ipfs_host: 192.168.1.103
+eth_node: https://bootstrap-node.onrender.com/rpc
+ipfs_gateway: http://35.160.120.126:8081
+ipfs_host: 127.0.0.1
 ipfs_port: 5001
 ipfs_protocol: http
 logging:
@@ -41,12 +41,12 @@ monitoring:
   metrics_enabled: true
   metrics_interval: 60
 network:
+  auto_connect: true
   bootstrap_nodes:
   - https://bootstrap-node.onrender.com
-  - http://35.160.120.126:8545
-  - http://44.233.151.27:8545
-  - http://34.211.200.85:8545
   connection_timeout: 30
+  discovery_interval: 30
+  enable_discovery: true
   listen_port: 30303
   max_peers: 50
   request_timeout: 60
@@ -57,6 +57,7 @@ ray:
   num_cpus: null
   num_gpus: null
   port: 6379
+ray_port: 6379
 resources:
   cpu_contribution: 10
   gpu_contribution: 10
@@ -69,6 +70,8 @@ resources:
   min_free_vram: 4294967296
   ram_contribution: 15
   storage_contribution: 5
+  head_min_ram: 2147483648
+  head_min_vram: 4294967296
 security:
   api_key: null
   api_key_required: false
@@ -88,3 +91,11 @@ vllm:
 websocket:
   max_connections: 100
   port: 8546
+
+# Additional configurations for main.py
+model_name: "deepseek-r1-1.5b"
+enable_mcp: true
+mcp_max_iterations: 5
+max_tokens: 512
+temperature: 0.7
+top_p: 0.9

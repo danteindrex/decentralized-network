@@ -1,1 +1,0 @@
-This is a simple test model file for testing the inference system.

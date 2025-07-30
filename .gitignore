@@ -66,3 +66,9 @@ env/
 *.swp
 *.swo
 *~
+
+# DeepSeek model files
+deepseek_r1_1.5b_model.tar.gz
+deepseek_r1_1.5b_full_model.tar.gz
+deepseek_model_ipfs_metadata.json
+*.tar.gz

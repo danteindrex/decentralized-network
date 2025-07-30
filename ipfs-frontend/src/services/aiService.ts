@@ -146,7 +146,7 @@ export class AIService {
         txHash: this.jobHistory[jobIndex]?.txHash || '',
         worker: worker || 'Unknown',
         duration,
-        cost: 0.01 // Mock cost
+        cost: 0 // Free inference with tensor parallelism
       };
 
     } catch (error) {
@@ -201,10 +201,10 @@ export class AIService {
   }
 
   private estimateProcessingTime(prompt: string, modelId: string): number {
-    // Simple estimation based on prompt length and model
-    const baseTime = modelId.includes('small') ? 10 : 30;
-    const lengthFactor = Math.ceil(prompt.length / 100);
-    return baseTime + (lengthFactor * 5);
+    // Tensor parallelism estimation - faster distributed processing
+    const baseTime = 15; // Consistent time for tensor parallelism
+    const lengthFactor = Math.ceil(prompt.length / 200); // Better scaling
+    return baseTime + (lengthFactor * 3);
   }
 
   // Chat-like interface methods
@@ -254,7 +254,7 @@ export class AIService {
         maxTokens: 150
       });
 
-      return `🎉 **Inference Complete!**\n\n**Response:** ${result.response}\n\n*Job ID: ${result.jobId} • Duration: ${result.duration.toFixed(1)}s*`;
+      return `🎉 **Tensor Parallel Inference Complete!**\n\n**Response:** ${result.response}\n\n*Job ID: ${result.jobId} • Duration: ${result.duration.toFixed(1)}s • Cost: FREE 🆓*`;
       
     } catch (error) {
       return `❌ Error running inference: ${error}`;
@@ -265,12 +265,13 @@ export class AIService {
     try {
       const stats = await this.getNetworkStats();
       
-      return `📊 **Network Status:**\n\n` +
+      return `📊 **Tensor Parallelism Network Status:**\n\n` +
         `• **Blockchain:** Block ${stats.blockNumber} ${stats.blockNumber > 0 ? '✅' : '❌'}\n` +
         `• **IPFS:** ${stats.ipfsStatus ? 'Online ✅' : 'Offline ❌'}\n` +
-        `• **Active Workers:** ${stats.connectedWorkers}\n` +
+        `• **Tensor Devices:** ${stats.connectedWorkers} (phones, laptops, servers)\n` +
         `• **Your Balance:** ${parseFloat(stats.balance).toFixed(4)} ETH\n` +
-        `• **Total Jobs:** ${stats.totalJobs}`;
+        `• **Total Jobs:** ${stats.totalJobs}\n` +
+        `• **Inference Cost:** FREE 🆓 (tensor parallelism)`;
         
     } catch (error) {
       return `❌ Error fetching network status: ${error}`;
@@ -311,7 +312,7 @@ export class AIService {
   }
 
   private getHelpMessage(): string {
-    return `🤖 **AI Assistant Help:**\n\n` +
+    return `🤖 **Tensor Parallelism AI Assistant Help:**\n\n` +
       `**Commands:**\n` +
       `• **Run inference:** "Tell me about quantum computing"\n` +
       `• **Check status:** "show network status"\n` +
@@ -322,6 +323,8 @@ export class AIService {
       `• "Explain machine learning in simple terms"\n` +
       `• "Write a Python function to sort a list"\n` +
       `• "What is the meaning of life?"\n\n` +
-      `Just type your question and I'll process it with our decentralized AI network!`;
+      `🆓 **FREE Inference:** All AI processing is completely free!\n` +
+      `📱 **Mobile-First:** Your phone contributes to large model processing!\n` +
+      `⚡ **Tensor Parallelism:** Models distributed across multiple devices for better performance!`;
   }
 }
